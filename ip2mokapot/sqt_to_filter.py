@@ -20,6 +20,10 @@ from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein
 # TODO: Make option to save intermediate mokapot files somewhere
 
 def parse_args() -> argparse.Namespace:
+    """
+    Argument parser for ip2mokapot
+    :return: argparse.Namespace - parsed arsg
+    """
     _parser = argparse.ArgumentParser(description='Arguments for Percolator to DtaSelect-Filter')
     _parser.add_argument('--sqts', required=True, action='append', type=str, help='path to SQT file')
     _parser.add_argument('--fastas', required=True, action='append', type=str,
@@ -204,8 +208,10 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
     # Finalize DTASelect-filter.txt lines
     h_lines = ['DTASelect v2.1.12\n',
                '\n',
-               'Locus	Sequence Count	Spectrum Count	Sequence Coverage	Length	MolWt	pI	Validation Status	NSAF	EMPAI	Descriptive Name	HRedundancy	LRedundancy	MRedundancy\n',
-               'Unique	FileName	XCorr	DeltCN	Conf%	M+H+	CalcM+H+	PPM	TotalIntensity	SpR	Prob Score	pI	IonProportion	Redundancy	Sequence	RetTime	PTMIndex	PTMIndex Protein List\n'
+               'Locus	Sequence Count	Spectrum Count	Sequence Coverage	Length	MolWt	pI	Validation Status	'
+               'NSAF	EMPAI	Descriptive Name	HRedundancy	LRedundancy	MRedundancy\n',
+               'Unique	FileName	XCorr	DeltCN	Conf%	M+H+	CalcM+H+	PPM	TotalIntensity	SpR	Prob Score	'
+               'pI	IonProportion	Redundancy	Sequence	RetTime	PTMIndex	PTMIndex Protein List\n'
                ]
 
     unfiltered_proteins = len(target_protein_results) + len(decoy_protein_results)

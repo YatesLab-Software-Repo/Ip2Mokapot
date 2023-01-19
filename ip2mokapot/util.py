@@ -1,36 +1,32 @@
-import os
 import re
 from collections import defaultdict
+from xml.etree import ElementTree
 
 import numpy as np
-from mokapot.parsers.fasta import _group_proteins, digest, _parse_protein
+from mokapot.parsers.fasta import _group_proteins, digest
 from mokapot.proteins import Proteins, LOGGER
-from mokapot.utils import tuplize
-
-
-def map_locus_to_sequence_from_fasta(fasta_lines):
-    locus_to_sequence_map = {}
-    locus = None
-    for line in fasta_lines:
-        if line == "":
-            continue
-        elif line[0] == ">":  # new protein
-            locus = line.rstrip().split(" ")[0].replace(">", "")
-            description = " ".join(line.rstrip().split(" ")[1:])
-            locus_to_sequence_map[locus] = {'sequence': "", 'description': description}
-        else:  # protein sequence
-            locus_to_sequence_map[locus]['sequence'] += line.rstrip()
-    return locus_to_sequence_map
 
 
 def get_unmodified_peptide(peptide_sequence: str) -> str:
+    """
+    Converts a peptide sequence to an unmodified version. cleans n-term and c-term amino acids if they are present.
+    :param peptide_sequence: peptides sequence
+    :return: unmodified peptide sequence
+    """
     if peptide_sequence[2] == '.' and peptide_sequence[-2] == '.':
         peptide_sequence = peptide_sequence[2:-2]
 
     pattern = re.compile(r'[^A-Z]')
     return pattern.sub('', peptide_sequence)
 
-def calculate_protein_coverage(protein, peptides):
+
+def calculate_protein_coverage(protein: str, peptides: list[str]) -> np.ndarray:
+    """
+    Calculates the protein sequence coverage
+    :param protein: protein sequence
+    :param peptides: list of peptides
+    :return: np array which specifies where the protein is covered
+    """
     cov_arr = np.zeros(len(protein))
     for peptide in peptides:
 
@@ -45,9 +41,13 @@ def calculate_protein_coverage(protein, peptides):
 
 
 def xml_to_dict(xml_file):
-    import xml.etree.ElementTree as ET
+    """
+    Converts a xml file to python dict
+    :param xml_file: xml file
+    :return: dict containing xml file values
+    """
 
-    tree = ET.parse(xml_file)
+    tree = ElementTree.parse(xml_file)
     root = tree.getroot()
     data = {}
 
@@ -77,29 +77,13 @@ def xml_to_dict(xml_file):
     return data
 
 
-def run_perc(input_file, fasta_file, perc_path):
-    decoy_flag = "Reverse_"
-
-    target_psms = "target_psms.tsv"
-    target_peptides = "target_peptides.tsv"
-    target_proteins = "target_proteins.tsv"
-    decoy_psms = "decoy_psms.tsv"
-    decoy_peptides = "decoy_peptides.tsv"
-    decoy_proteins = "decoy_proteins.tsv"
-
-    fasta_arg_str = f"-f {fasta_file}"
-    perc_command = f"{perc_path} -j {input_file} -P {decoy_flag} " \
-                   f"{fasta_arg_str if fasta_file else '-A'} -A " \
-                   f"-m {target_psms} -r {target_peptides} -l {target_proteins} " \
-                   f"-M {decoy_psms} -B {decoy_peptides} -L {decoy_proteins}"
-
-    print(perc_command)
-    os.system(perc_command)
-
-    return target_psms, target_peptides, target_proteins, decoy_psms, decoy_peptides, decoy_proteins
-
-
 def map_protein_to_peptides(protein_results, peptide_results):
+    """
+    maps protein locus to peptide sequence
+    :param protein_results: mokapot protein results df
+    :param peptide_results: mokapot peptide results df
+    :return: map of protein locus to peptide sequence
+    """
     protein_to_peptide_map = {}
     for proteins in protein_results['mokapot protein group']:
         proteins = proteins.split(', ')
@@ -113,7 +97,13 @@ def map_protein_to_peptides(protein_results, peptide_results):
 
     return protein_to_peptide_map
 
+
 def map_peptide_to_specid(psm_results):
+    """
+    maps peptide sequence to specid
+    :param psm_results: mokapot psm results df
+    :return: peptide to specid map
+    """
     peptide_to_specid = {}
     for specid, peptide in psm_results[['SpecId', 'Peptide']].values:
         peptide_to_specid.setdefault(peptide, set()).add(specid)
@@ -164,15 +154,17 @@ def _parse_protein(raw_protein):
 
     seq = "".join(entry[1:])
     return prot, seq, desc
+
+
 def read_fasta(
-    fasta,
-    enzyme="[KR]",
-    missed_cleavages=2,
-    clip_nterm_methionine=False,
-    min_length=6,
-    max_length=50,
-    semi=False,
-    decoy_prefix="decoy_",
+        fasta,
+        enzyme="[KR]",
+        missed_cleavages=2,
+        clip_nterm_methionine=False,
+        min_length=6,
+        max_length=50,
+        semi=False,
+        decoy_prefix="decoy_",
 ):
     """Parse a FASTA file, storing a mapping of peptides and proteins.
 
@@ -193,7 +185,7 @@ def read_fasta(
 
     Parameters
     ----------
-    fasta_files : list of TextIOWrapper's and StringIO's
+    fasta : list of TextIOWrapper's and StringIO's
         The FASTA file(s) used for assigning the PSMs
     decoy_prefix : str, optional
         The prefix used to indicate a decoy protein in the description

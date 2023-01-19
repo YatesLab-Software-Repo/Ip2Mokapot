@@ -11,3 +11,6 @@
 ## See arguments:
 
 >$mokafilter -h
+
+Make doker image
+make entrypoint for streamlit application

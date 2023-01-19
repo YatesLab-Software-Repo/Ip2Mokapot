@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import math
 from io import StringIO, TextIOWrapper
-
 from serenipy import sqt, dtaselectfilter
-from pathlib import Path
 import pandas as pd
-from Bio.SeqUtils.ProtParam import ProteinAnalysis as PA
+from Bio.SeqUtils.ProtParam import ProteinAnalysis
 from .util import calculate_protein_coverage, get_unmodified_peptide, map_protein_to_peptides, map_peptide_to_specid
 
 
 def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.DataFrame:
+    """
+    Convert SQT filee into a pandas df
+    :param sqt_content: contents of the sqt file
+    :param filename: name of the sqt file
+    :return: the pandas Dataframe
+    """
 
     _, _, s_lines = sqt.from_sqt(sqt_content)
 
@@ -67,51 +71,68 @@ def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.D
         df['file'] = filename
     return df
 
-def convert_to_moka(df: pd.DataFrame):
+
+def convert_to_moka(sqt_df: pd.DataFrame):
+    """
+    Converts a sqt df to a mokapot input df (pin format)
+    :param sqt_df: sqt df
+    :return: mokapot input df (pin)
+    """
     perc_df = pd.DataFrame()
-    perc_df.index = df.index
+    perc_df.index = sqt_df.index
     perc_df.index.name = 'SpecId'
 
-    perc_df['Label'] = df['target']
+    perc_df['Label'] = sqt_df['target']
     perc_df.loc[perc_df['Label'] == 0, 'Label'] = -1
     perc_df.loc[perc_df['Label'] == 1, 'Label'] = 1
 
-    perc_df['ScanNr'] = df['low_scan']
-    perc_df['ExpMass'] = df['experimental_mass']
-    perc_df['CalcMass'] = df['calculated_mass']
+    perc_df['ScanNr'] = sqt_df['low_scan']
+    perc_df['ExpMass'] = sqt_df['experimental_mass']
+    perc_df['CalcMass'] = sqt_df['calculated_mass']
 
-    #perc_df['group'] = df['file']
+    # perc_df['group'] = df['file']
 
-    perc_df['abs_ppm'] = abs((df['experimental_mass'] - df['calculated_mass']) / df['calculated_mass'] * 1_000_000)
-    perc_df['abs_mass_diff'] = abs(df['experimental_mass'] - df['calculated_mass'])
+    perc_df['abs_ppm'] = \
+        abs((sqt_df['experimental_mass'] - sqt_df['calculated_mass']) / sqt_df['calculated_mass'] * 1_000_000)
+    perc_df['abs_mass_diff'] = abs(sqt_df['experimental_mass'] - sqt_df['calculated_mass'])
 
-    charges = pd.get_dummies(df['charge'], prefix='charge')
+    charges = pd.get_dummies(sqt_df['charge'], prefix='charge')
     perc_df = pd.concat([perc_df, charges], axis=1)
 
-    perc_df['delta_cn'] = df['delta_cn']
-    perc_df['xcorr'] = df['xcorr']
-    perc_df['matched_ions'] = df['matched_ions']
-    perc_df['expected_ions'] = df['expected_ions']
-    perc_df['matched_ion_fraction'] = df['matched_ions'] / df['expected_ions']
+    perc_df['delta_cn'] = sqt_df['delta_cn']
+    perc_df['xcorr'] = sqt_df['xcorr']
+    perc_df['matched_ions'] = sqt_df['matched_ions']
+    perc_df['expected_ions'] = sqt_df['expected_ions']
+    perc_df['matched_ion_fraction'] = sqt_df['matched_ions'] / sqt_df['expected_ions']
 
-    perc_df['sp'] = df['sp']
-    perc_df['sequence_length'] = [len(get_unmodified_peptide(peptide)) for peptide in df['sequence']]
+    perc_df['sp'] = sqt_df['sp']
+    perc_df['sequence_length'] = [len(get_unmodified_peptide(peptide)) for peptide in sqt_df['sequence']]
 
-    perc_df['xcorr_rank'] = df['xcorr_rank']
-    perc_df['sp_rank'] = df['sp_rank']
-    perc_df['tryp'] = [int(peptide[0] in ['KR']) + int(peptide[-3] in ['KR']) for peptide in df['sequence']]
+    perc_df['xcorr_rank'] = sqt_df['xcorr_rank']
+    perc_df['sp_rank'] = sqt_df['sp_rank']
+    perc_df['tryp'] = [int(peptide[0] in ['KR']) + int(peptide[-3] in ['KR']) for peptide in sqt_df['sequence']]
 
-    m_lines = pd.get_dummies(df['m_line'], prefix='m_line')
+    m_lines = pd.get_dummies(sqt_df['m_line'], prefix='m_line')
     perc_df = pd.concat([perc_df, m_lines], axis=1)
 
-    perc_df['Peptide'] = df['sequence']
-    perc_df['Proteins'] = df['locuses']
+    perc_df['Peptide'] = sqt_df['sequence']
+    perc_df['Proteins'] = sqt_df['locuses']
     perc_df.reset_index(inplace=True)
 
     return perc_df
 
 
-def get_filter_results_moka(sqt_df, psm_results, peptide_results, protein_results, fasta_dict):
+def get_filter_results_moka(sqt_df: pd.DataFrame, psm_results: pd.DataFrame, peptide_results: pd.DataFrame,
+                            protein_results: pd.DataFrame, fasta_dict) -> list[dtaselectfilter.DTAFilterResult]:
+    """
+    Converts mokapot results into DTAFilterResult results
+    :param sqt_df: sqt df
+    :param psm_results: mokapot psm results
+    :param peptide_results: mokapot peptide results
+    :param protein_results: mokapot protein results
+    :param fasta_dict: locus to protein sequence map
+    :return: list of DTAFilterResult results
+    """
     peptide_to_specid = map_peptide_to_specid(psm_results)
     protein_to_peptides = map_protein_to_peptides(protein_results, peptide_results)
 
@@ -132,7 +153,7 @@ def get_filter_results_moka(sqt_df, psm_results, peptide_results, protein_result
             length = len(protein_sequence)
 
             try:
-                protein = PA(protein_sequence)
+                protein = ProteinAnalysis(protein_sequence)
                 molWt = protein.molecular_weight()
                 pi = protein.isoelectric_point()
             except ValueError:
@@ -154,16 +175,16 @@ def get_filter_results_moka(sqt_df, psm_results, peptide_results, protein_result
                                                        l_redundancy=None,
                                                        m_redundancy=None)
             protein_lines.append(protein_line)
-            # print(dtaselectfilter._serialize_protein_line(protein_line, dtaselectfilter.DtaSelectFilterVersion.V2_1_12))
-        for i, row in sqt_psm_df.iterrows():
-            peptide = PA(row['sequence'])
+
+        for _, row in sqt_psm_df.iterrows():
+            peptide = ProteinAnalysis(row['sequence'])
 
             file_path = row['file']
             low_scan = row['low_scan']
             high_scan = row['high_scan']
             charge = row['charge']
 
-            file_name = f'{row["file"]}.{low_scan}.{high_scan}.{charge}'
+            file_name = f'{file_path}.{low_scan}.{high_scan}.{charge}'
             peptide_line = dtaselectfilter.PeptideLine(
                 unique=None,
                 file_name=file_name,
