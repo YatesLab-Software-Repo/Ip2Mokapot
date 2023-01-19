@@ -5,5 +5,4 @@ mokapot==0.9.1
 xgboost==1.7.3
 biopython==1.80
 streamlit==1.17.0
-ip2mokapot==0.0.1
 setuptools==65.5.1
