@@ -6,7 +6,7 @@
 
 ## How to run:
 
->$mokafilter --sqt data\test.sqt --fasta data\test.fasta --search_xml data\search.xml
+>$mokafilter --sqt data\test.sqt --fasta data\test.fasta --search_xml data\search.xml --out data\DTASelect-filter.txt
 
 ## See arguments:
 
