@@ -17,6 +17,8 @@ with st.expander('Advanced'):
     min_peptides = st.number_input(label='min_peptides', value=1)
 
     enzyme_regex = st.text_input(label='enzyme_regex', value='[KR]')
+    enzyme_term = st.checkbox(label='enzyme_term', value=True)
+
     missed_cleavage = st.number_input(label='missed_cleavage', value=1)
     min_length = st.number_input(label='min_length', value=6)
     max_length = st.number_input(label='max_length', value=50)
@@ -39,7 +41,7 @@ if st.button('start') and sqts and fastas:
         search_xml_io = StringIO(search_xml.getvalue().decode("utf-8"))
 
     dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
-                                    search_xml_io, enzyme_regex, missed_cleavage, min_length, max_length, semi,
+                                    search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length, semi,
                                     decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr)
 
     st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content, file_name='DTASelect-filter.txt')

@@ -16,7 +16,6 @@ from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein
 
 # TODO: Add routine for running multiple sqt files independently/combined/grouped/ungrouped
 # TODO: Fix wierd TextIO vs TextIOWrapper typing issue
-# TODO: Make the ct-erm/n-term enzyme arg work (currently it only supports c-term)
 # TODO: Make option to save intermediate mokapot files somewhere
 
 def parse_args() -> argparse.Namespace:
@@ -25,8 +24,8 @@ def parse_args() -> argparse.Namespace:
     :return: argparse.Namespace - parsed arsg
     """
     _parser = argparse.ArgumentParser(description='Arguments for Percolator to DtaSelect-Filter')
-    _parser.add_argument('--sqts', required=True, action='append', type=str, help='path to SQT file')
-    _parser.add_argument('--fastas', required=True, action='append', type=str,
+    _parser.add_argument('--sqts', required=True, nargs='+', type=str, help='path to SQT file')
+    _parser.add_argument('--fastas', required=True, nargs='+', type=str,
                          help='path to FASTA file (must contain decoys and target proteins)')
     _parser.add_argument('--out', required=True, type=str, help='path to write output file')
 
@@ -41,6 +40,8 @@ def parse_args() -> argparse.Namespace:
                               'enzyme_regex, missed_cleavage, min_length, semi')
     _parser.add_argument('--enzyme_regex', required=False, default='[KR]',
                          help='The regex string to determine enzyme sites')
+    _parser.add_argument('--enzyme_term', required=False, default=True,
+                         help='The regex term')
     _parser.add_argument('--missed_cleavage', required=False, default=0, type=int,
                          help='Number of internal peptide missed cleavages')
     _parser.add_argument('--min_length', required=False, default=6, type=float, help='min peptide length')
@@ -76,7 +77,7 @@ def run():
     search_xml = Path(args.search_xml).open()
 
     dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
-                                    search_xml, args.enzyme_regex, args.missed_cleavage,
+                                    search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
                                     args.min_length, args.max_length, args.semi, args.decoy_prefix, args.xgboost,
                                     args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter)
 
@@ -86,7 +87,7 @@ def run():
 
 def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper | StringIO], protein_fdr: float,
                peptide_fdr: float, psm_fdr: float, min_peptides: int, search_xml: TextIOWrapper | StringIO,
-               enzyme_regex: str, missed_cleavage: int, min_length: int, max_length: int, semi: bool,
+               enzyme_regex: str, enzyme_term:bool, missed_cleavage: int, min_length: int, max_length: int, semi: bool,
                decoy_prefix: str, xgboost: bool, test_fdr: float, folds: int, workers: int, sqt_stems: list[str],
                max_iter: int) -> str:
     """
@@ -107,7 +108,7 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
         missed_cleavage = int(xml_dict['enzyme_info']['max_num_internal_mis_cleavage'])
         semi = int(xml_dict['enzyme_info']['specificity']) != 2
         enzyme_regex = f"[{''.join(xml_dict['enzyme_info']['residues']['residue'])}]"
-        enzyme_term = 'cterm' if xml_dict['enzyme_info']['type'] == 'true' else 'nterm'
+        enzyme_term = xml_dict['enzyme_info']['type'] == 'true'
         min_length = int(xml_dict['peptide_length_limits']['minimum'])
 
     fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas)]
@@ -122,7 +123,8 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
                           min_length=min_length,
                           max_length=max_length,
                           semi=semi,
-                          decoy_prefix=decoy_prefix)
+                          decoy_prefix=decoy_prefix,
+                          enzyme_term=enzyme_term)
     psms.add_proteins(proteins)
 
     if xgboost:

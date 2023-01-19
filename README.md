@@ -15,3 +15,7 @@ or
 ## See arguments:
 
 >$mokafilter -h
+
+## Run Streamlit app
+
+streamlit run home.py

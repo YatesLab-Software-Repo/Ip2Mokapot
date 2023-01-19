@@ -3,7 +3,7 @@ from collections import defaultdict
 from xml.etree import ElementTree
 
 import numpy as np
-from mokapot.parsers.fasta import _group_proteins, digest
+from mokapot.parsers.fasta import _group_proteins, _cleave
 from mokapot.proteins import Proteins, LOGGER
 
 
@@ -156,6 +156,83 @@ def _parse_protein(raw_protein):
     return prot, seq, desc
 
 
+def _cleavage_sites(sequence, enzyme_regex, enzyme_term):
+    """Find the cleavage sites in a sequence.
+
+    Parameters
+    ----------
+    sequence : str
+        A protein sequence to digest.
+    enzyme_regex : str or compiled regex
+        A regular expression defining the enzyme specificity.
+
+    Returns
+    -------
+    sites : list of int
+        The cleavage sites in the sequence.
+    """
+    if isinstance(enzyme_regex, str):
+        enzyme_regex = re.compile(enzyme_regex)
+
+    # Find the cleavage sites
+    sites = (
+        [0]
+        + [m.end() if enzyme_term else m.start() for m in enzyme_regex.finditer(sequence)]
+        + [len(sequence)]
+    )
+    return sites
+
+def digest(
+    sequence,
+    enzyme_regex="[KR]",
+    missed_cleavages=0,
+    clip_nterm_methionine=False,
+    min_length=6,
+    max_length=50,
+    semi=False,
+    enzyme_term=True
+):
+    """
+    Digest a protein sequence into its constituent peptides.
+
+    Parameters
+    ----------
+    sequence : str
+        A protein sequence to digest.
+    enzyme_regex : str or compiled regex, optional
+        A regular expression defining the enzyme specificity. The end of the
+        match should indicate the cleavage site.
+    missed_cleavages : int, optional
+        The maximum number of allowed missed cleavages.
+    clip_nterm_methionine : bool, optional
+        Remove methionine residues that occur at the protein N-terminus.
+    min_length : int, optional
+        The minimum peptide length.
+    max_length : int, optional
+        The maximum peptide length.
+    semi : bool
+        Allow semi-enzymatic cleavage.
+
+    Returns
+    -------
+    peptides : set of str
+        The peptides resulting from the digested sequence.
+    """
+    sites = _cleavage_sites(sequence, enzyme_regex, enzyme_term)
+
+    peptides = _cleave(
+        sequence=sequence,
+        sites=sites,
+        missed_cleavages=missed_cleavages,
+        min_length=min_length,
+        max_length=max_length,
+        semi=semi,
+        clip_nterm_met=clip_nterm_methionine,
+    )
+
+    return peptides
+
+
 def read_fasta(
         fasta,
         enzyme="[KR]",
@@ -165,6 +242,7 @@ def read_fasta(
         max_length=50,
         semi=False,
         decoy_prefix="decoy_",
+        enzyme_term=True
 ):
     """Parse a FASTA file, storing a mapping of peptides and proteins.
 
@@ -233,6 +311,7 @@ def read_fasta(
             max_length=max_length,
             semi=semi,
             clip_nterm_methionine=clip_nterm_methionine,
+            enzyme_term=enzyme_term
         )
 
         if peps:
