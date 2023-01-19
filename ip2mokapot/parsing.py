@@ -1,12 +1,9 @@
 import math
-
 from serenipy import sqt, dtaselectfilter
-
 from pathlib import Path
 import pandas as pd
-
-from util import calculate_protein_coverage, get_unmodified_peptide, map_protein_to_peptides, map_peptide_to_specid
 from Bio.SeqUtils.ProtParam import ProteinAnalysis as PA
+from .util import calculate_protein_coverage, get_unmodified_peptide, map_protein_to_peptides, map_peptide_to_specid
 
 
 def convert_to_csv(sqt_file: Path) -> pd.DataFrame:
@@ -244,6 +241,7 @@ def get_filter_results(sqt_df, protein_df, psm_df, fasta_dict, sqt_file_name):
         filter_results.append(dtaselectfilter.DTAFilterResult(protein_lines=protein_lines, peptide_lines=peptide_lines))
     return filter_results
 
+
 def get_filter_results_moka(sqt_df, psm_results, peptide_results, protein_results, fasta_dict, sqt_file_name):
     peptide_to_specid = map_peptide_to_specid(psm_results)
     protein_to_peptides = map_protein_to_peptides(protein_results, peptide_results)
@@ -308,8 +306,8 @@ def get_filter_results_moka(sqt_df, psm_results, peptide_results, protein_result
                 ppm=(row['experimental_mass'] - row['calculated_mass']) / row['calculated_mass'] * 1_000_000,
                 total_intensity=row['total_ion_intensity'],
                 spr=row['sp_rank'],
-                ion_proportion=row['matched_ions']/row['expected_ions']*100,
-                redundancy=None, # add in later
+                ion_proportion=row['matched_ions'] / row['expected_ions'] * 100,
+                redundancy=None,  # add in later
                 sequence=row['sequence'],
                 prob_score=row['sp'],
                 pi=peptide.isoelectric_point(),

@@ -6,8 +6,8 @@ import mokapot
 from serenipy import dtaselectfilter
 from xgboost import XGBClassifier
 
-from parsing import convert_to_csv, convert_to_moka, get_filter_results_moka
-from util import map_locus_to_sequence_from_fasta, xml_to_dict
+from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka
+from .util import map_locus_to_sequence_from_fasta, xml_to_dict
 
 
 def parse_args() -> argparse.Namespace:

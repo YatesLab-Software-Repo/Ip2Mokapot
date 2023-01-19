@@ -12,7 +12,7 @@ else:
 setup(
     name='ip2mokapot',
     version='0.0.1',
-    packages=['.'],
+    packages=['ip2mokapot'],
     url='',
     license='',
     author='pgarrett',
