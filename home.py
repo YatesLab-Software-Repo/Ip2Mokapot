@@ -16,13 +16,15 @@ with st.expander('Advanced'):
     psm_fdr = st.number_input(label='psm_fdr', value=0.01)
     min_peptides = st.number_input(label='min_peptides', value=1)
 
-    enzyme_regex = st.text_input(label='enzyme_regex', value='[KR]')
-    enzyme_term = st.checkbox(label='enzyme_term', value=True)
+    missed_cleavage, semi, enzyme_regex, enzyme_term, min_length = None, None, None, None, None
+    if not search_xml:
+        missed_cleavage = st.number_input(label='missed_cleavage', value=1)
+        semi = st.checkbox(label='semi', value=False)
+        enzyme_regex = st.text_input(label='enzyme_regex', value='[KR]')
+        enzyme_term = st.checkbox(label='enzyme_term', value=True)
+        min_length = st.number_input(label='min_length', value=6)
 
-    missed_cleavage = st.number_input(label='missed_cleavage', value=1)
-    min_length = st.number_input(label='min_length', value=6)
     max_length = st.number_input(label='max_length', value=50)
-    semi = st.checkbox(label='semi', value=False)
     decoy_prefix = st.text_input(label='decoy_prefix', value='Reverse_')
     xgboost = st.checkbox(label='xgboost', value=True)
     test_fdr = st.number_input(label='test_fdr', value=0.01)

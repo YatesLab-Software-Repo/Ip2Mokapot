@@ -93,7 +93,7 @@ def convert_to_moka(sqt_df: pd.DataFrame):
     # perc_df['group'] = df['file']
 
     perc_df['abs_ppm'] = \
-        abs((sqt_df['experimental_mass'] - sqt_df['calculated_mass']) / sqt_df['calculated_mass'] * 1_000_000)
+        abs((sqt_df['experimental_mass'] - sqt_df['calculated_mass']).divide(sqt_df['calculated_mass']) * 1_000_000)
     perc_df['abs_mass_diff'] = abs(sqt_df['experimental_mass'] - sqt_df['calculated_mass'])
 
     charges = pd.get_dummies(sqt_df['charge'], prefix='charge')
@@ -103,7 +103,7 @@ def convert_to_moka(sqt_df: pd.DataFrame):
     perc_df['xcorr'] = sqt_df['xcorr']
     perc_df['matched_ions'] = sqt_df['matched_ions']
     perc_df['expected_ions'] = sqt_df['expected_ions']
-    perc_df['matched_ion_fraction'] = sqt_df['matched_ions'] / sqt_df['expected_ions']
+    perc_df['matched_ion_fraction'] = sqt_df['matched_ions'].divide(sqt_df['expected_ions'])
 
     perc_df['sp'] = sqt_df['sp']
     perc_df['sequence_length'] = [len(get_unmodified_peptide(peptide)) for peptide in sqt_df['sequence']]
@@ -189,6 +189,17 @@ def get_filter_results_moka(sqt_df: pd.DataFrame, psm_results: pd.DataFrame, pep
             charge = row['charge']
 
             file_name = f'{file_path}.{low_scan}.{high_scan}.{charge}'
+
+            try:
+                ppm = (row['experimental_mass'] - row['calculated_mass']) / row['calculated_mass'] * 1_000_000
+            except ZeroDivisionError:
+                ppm = None
+
+            try:
+                ion_proportion = row['matched_ions'] / row['expected_ions'] * 100
+            except ZeroDivisionError:
+                ion_proportion = None
+
             peptide_line = dtaselectfilter.PeptideLine(
                 unique=None,
                 file_name=file_name,
@@ -197,10 +208,10 @@ def get_filter_results_moka(sqt_df: pd.DataFrame, psm_results: pd.DataFrame, pep
                 conf=None,
                 mass_plus_hydrogen=row['experimental_mass'],
                 calc_mass_plus_hydrogen=row['calculated_mass'],
-                ppm=(row['experimental_mass'] - row['calculated_mass']) / row['calculated_mass'] * 1_000_000,
+                ppm=ppm,
                 total_intensity=row['total_ion_intensity'],
                 spr=row['sp_rank'],
-                ion_proportion=row['matched_ions'] / row['expected_ions'] * 100,
+                ion_proportion=ion_proportion,
                 redundancy=None,  # add in later
                 sequence=row['sequence'],
                 prob_score=row['sp'],

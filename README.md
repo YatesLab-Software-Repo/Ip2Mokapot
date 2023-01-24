@@ -8,9 +8,13 @@ or
 
 >$pip install ip2mokapot
 
-## How to run:
+## How to run (IP2):
 
 >$mokafilter --sqts data\test.sqt --fastas data\test.fasta --search_xml data\search.xml --out data\DTASelect-filter.txt
+
+## How to run (PaSER):
+
+>$mokafilter --sqts data\test.sqt --fastas data\test.fasta --search_xml data\search.xml --out data\DTASelect-filter.txt --timscore True
 
 ## See arguments:
 
@@ -18,4 +22,4 @@ or
 
 ## Run Streamlit app
 
-streamlit run home.py
+>$streamlit run home.py
