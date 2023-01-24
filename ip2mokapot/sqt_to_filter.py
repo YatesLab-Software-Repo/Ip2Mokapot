@@ -24,7 +24,8 @@ def parse_args() -> argparse.Namespace:
     Argument parser for ip2mokapot
     :return: argparse.Namespace - parsed arsg
     """
-    _parser = argparse.ArgumentParser(description='Arguments for Percolator to DtaSelect-Filter')
+    _parser = argparse.ArgumentParser(description='Arguments for Percolator to DtaSelect-Filter',
+                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     _parser.add_argument('--sqts', required=True, nargs='+', type=str, help='path to SQT file')
     _parser.add_argument('--fastas', required=True, nargs='+', type=str,
                          help='path to FASTA file (must contain decoys and target proteins)')
