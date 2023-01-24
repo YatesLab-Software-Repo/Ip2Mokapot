@@ -11,7 +11,7 @@ else:
 
 setup(
     name='ip2mokapot',
-    version='0.0.2',
+    version='0.0.3',
     packages=['ip2mokapot'],
     url='',
     license='',

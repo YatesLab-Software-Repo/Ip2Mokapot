@@ -115,6 +115,10 @@ def convert_to_moka(sqt_df: pd.DataFrame):
     m_lines = pd.get_dummies(sqt_df['m_line'], prefix='m_line')
     perc_df = pd.concat([perc_df, m_lines], axis=1)
 
+    if any(sqt_df['tims_score']):
+        perc_df['tims_score'] = sqt_df['tims_score']
+        perc_df['tims_score'] = perc_df['tims_score'].fillna(value=0)
+
     perc_df['Peptide'] = sqt_df['sequence']
     perc_df['Proteins'] = sqt_df['locuses']
     perc_df.reset_index(inplace=True)

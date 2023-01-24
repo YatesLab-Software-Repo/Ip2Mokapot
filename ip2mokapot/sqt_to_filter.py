@@ -17,6 +17,7 @@ from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein
 # TODO: Add routine for running multiple sqt files independently/combined/grouped/ungrouped
 # TODO: Fix wierd TextIO vs TextIOWrapper typing issue
 # TODO: Make option to save intermediate mokapot files somewhere
+# TODO: Add DTASelect-filter version output option
 
 def parse_args() -> argparse.Namespace:
     """
@@ -61,6 +62,8 @@ def parse_args() -> argparse.Namespace:
                          help='number of workers (threads) to use for semi-supervized training loop')
     _parser.add_argument('--max_iter', required=False, default=10, type=int,
                          help='number of iterations to preform during the semi-supervized training loop')
+    _parser.add_argument('--timscore', required=False, default=False, type=bool,
+                         help='use timscore and convert to timscore DTASelect-filter.txt')
 
     return _parser.parse_args()
 
@@ -79,7 +82,7 @@ def run():
     dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
                                     search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
                                     args.min_length, args.max_length, args.semi, args.decoy_prefix, args.xgboost,
-                                    args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter)
+                                    args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter, args.timscore)
 
     with open(Path(args.out), 'w') as file:
         file.write(dta_filter_content)
@@ -89,7 +92,7 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
                peptide_fdr: float, psm_fdr: float, min_peptides: int, search_xml: TextIOWrapper | StringIO,
                enzyme_regex: str, enzyme_term:bool, missed_cleavage: int, min_length: int, max_length: int, semi: bool,
                decoy_prefix: str, xgboost: bool, test_fdr: float, folds: int, workers: int, sqt_stems: list[str],
-               max_iter: int) -> str:
+               max_iter: int, timscore: bool) -> str:
     """
     What a mess of code...
 
@@ -208,14 +211,6 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
             peptide_line.redundancy = peptide_counts[peptide_line.sequence]
 
     # Finalize DTASelect-filter.txt lines
-    h_lines = ['DTASelect v2.1.12\n',
-               '\n',
-               'Locus	Sequence Count	Spectrum Count	Sequence Coverage	Length	MolWt	pI	Validation Status	'
-               'NSAF	EMPAI	Descriptive Name	HRedundancy	LRedundancy	MRedundancy\n',
-               'Unique	FileName	XCorr	DeltCN	Conf%	M+H+	CalcM+H+	PPM	TotalIntensity	SpR	Prob Score	'
-               'pI	IonProportion	Redundancy	Sequence	RetTime	PTMIndex	PTMIndex Protein List\n'
-               ]
-
     unfiltered_proteins = len(target_protein_results) + len(decoy_protein_results)
     unfiltered_peptides = len(target_peptide_results) + len(decoy_peptide_results)
     unfiltered_psms = len(target_psm_results) + len(decoy_psm_results)
@@ -248,11 +243,33 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
                  f'Redundant Decoy matches	{0}  {0}  {0}\n',
                  f'Forward FDR	{protein_fdr}	{peptide_fdr}	{psm_fdr}\n']
 
-    dta_filter_content = dtaselectfilter.to_dta_select_filter(
-        version=dtaselectfilter.DtaSelectFilterVersion.V2_1_12_paser,
-        h_lines=h_lines,
-        dta_filter_results=filter_results,
-        end_lines=end_lines)
+    if timscore is True:
+        h_lines = ['DTASelect v2.1.12\n',
+                   '\n',
+                   'Locus	Sequence Count	Spectrum Count	Sequence Coverage	Length	MolWt	pI	'
+                   'Validation Status	NSAF	EMPAI	Descriptive Name	HRedundancy	LRedundancy	MRedundancy\n',
+                   'Unique	FileName	XCorr	DeltCN	Conf%	M+H+	CalcM+H+	PPM	TotalIntensity	SpR	'
+                   'Prob Score	pI	IonProportion	Redundancy	Measured_IM_Value	Predicted_IM_Value	IM_Score	'
+                   'Sequence	ExperimentalMz	Corrected1k0	IonMobility	RetTime	PTMIndex	PTMIndex Protein List\n'
+                   ]
+        dta_filter_content = dtaselectfilter.to_dta_select_filter(
+            version=dtaselectfilter.DtaSelectFilterVersion.V2_1_13_timscore,
+            h_lines=h_lines,
+            dta_filter_results=filter_results,
+            end_lines=end_lines)
+    else:
+        h_lines = ['DTASelect v2.1.12\n',
+                   '\n',
+                   'Locus	Sequence Count	Spectrum Count	Sequence Coverage	Length	MolWt	pI	Validation Status	'
+                   'NSAF	EMPAI	Descriptive Name	HRedundancy	LRedundancy	MRedundancy\n',
+                   'Unique	FileName	XCorr	DeltCN	Conf%	M+H+	CalcM+H+	PPM	TotalIntensity	SpR	Prob Score	'
+                   'pI	IonProportion	Redundancy	Sequence	RetTime	PTMIndex	PTMIndex Protein List\n'
+                   ]
+        dta_filter_content = dtaselectfilter.to_dta_select_filter(
+            version=dtaselectfilter.DtaSelectFilterVersion.V2_1_12_paser,
+            h_lines=h_lines,
+            dta_filter_results=filter_results,
+            end_lines=end_lines)
 
     return dta_filter_content
 
