@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import math
 from io import StringIO, TextIOWrapper
+
+import numpy as np
 from serenipy import sqt, dtaselectfilter
 import pandas as pd
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
+from sklearn.preprocessing import MinMaxScaler
+
 from .util import calculate_protein_coverage, get_unmodified_peptide, map_protein_to_peptides, map_peptide_to_specid
 
 
@@ -71,6 +75,29 @@ def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.D
         df['file'] = filename
     return df
 
+def align_mass(df):
+    scaler = MinMaxScaler()
+    rts = scaler.fit_transform(df['low_scan'].values.reshape(-1, 1)).reshape(-1)
+    x_corr_perc = np.percentile(df['xcorr'], 95)
+    align_index = df['xcorr'] >= x_corr_perc
+    align_rts = rts[align_index]
+    align_mass_ppm_diff = (1_000_000*(df['experimental_mass'] - df['calculated_mass'])/df['calculated_mass'])[align_index]
+    print(align_mass_ppm_diff)
+    alignment_func = np.poly1d(np.polyfit(align_rts, align_mass_ppm_diff, 1))
+    shifts = alignment_func(rts)
+    df['experimental_mass'] = df['experimental_mass'] - df['experimental_mass'] * shifts / 1_000_000
+    #df['ppm'] = (df['experimental_mass'] - df['calculated_mass']) / df['calculated_mass'] * 1_000_000
+
+def align_mobility(df):
+    scaler = MinMaxScaler()
+    rts = scaler.fit_transform(df['low_scan'].values.reshape(-1, 1)).reshape(-1)
+    x_corr_perc = np.percentile(df['xcorr'], 95)
+    align_index = df['xcorr'] >= x_corr_perc
+    align_rts = rts[align_index]
+    align_mobility_diff = (df['experimental_ook0'] - df['predicted_ook0'])[align_index]
+    alignment_func = np.poly1d(np.polyfit(align_rts, align_mobility_diff, 1))
+    shifts = alignment_func(rts)
+    df['experimental_ook0'] = df['experimental_ook0'] - shifts
 
 def convert_to_moka(sqt_df: pd.DataFrame):
     """
@@ -110,14 +137,9 @@ def convert_to_moka(sqt_df: pd.DataFrame):
 
     perc_df['xcorr_rank'] = sqt_df['xcorr_rank']
     perc_df['sp_rank'] = sqt_df['sp_rank']
-    perc_df['tryp'] = [int(peptide[0] in ['KR']) + int(peptide[-3] in ['KR']) for peptide in sqt_df['sequence']]
 
     m_lines = pd.get_dummies(sqt_df['m_line'], prefix='m_line')
     perc_df = pd.concat([perc_df, m_lines], axis=1)
-
-    if any(sqt_df['tims_score']):
-        perc_df['tims_score'] = sqt_df['tims_score']
-        perc_df['tims_score'] = perc_df['tims_score'].fillna(value=0)
 
     perc_df['Peptide'] = sqt_df['sequence']
     perc_df['Proteins'] = sqt_df['locuses']

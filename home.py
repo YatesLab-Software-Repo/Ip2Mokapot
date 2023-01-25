@@ -33,6 +33,7 @@ with st.expander('Advanced'):
     max_itr = st.number_input(label='max_itr', value=10)
 
     timscore = st.checkbox(label='timscore', value=False)
+    mass_alignment = st.checkbox(label='mass_alignment', value=True)
 
 if st.button('start') and sqts and fastas:
 
@@ -46,6 +47,6 @@ if st.button('start') and sqts and fastas:
 
     dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
                                     search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length, semi,
-                                    decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore)
+                                    decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore, mass_alignment)
 
     st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content, file_name='DTASelect-filter.txt')

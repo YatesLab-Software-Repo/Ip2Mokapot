@@ -10,14 +10,12 @@ import pandas as pd
 from serenipy import dtaselectfilter
 from xgboost import XGBClassifier
 
-from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka
+from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, align_mass, align_mobility
 from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein
 
 
-# TODO: Add routine for running multiple sqt files independently/combined/grouped/ungrouped
-# TODO: Fix wierd TextIO vs TextIOWrapper typing issue
 # TODO: Make option to save intermediate mokapot files somewhere
-# TODO: Add DTASelect-filter version output option
+# TODO: Add option to train hyper params
 
 def parse_args() -> argparse.Namespace:
     """
@@ -26,9 +24,9 @@ def parse_args() -> argparse.Namespace:
     """
     _parser = argparse.ArgumentParser(description='Arguments for Percolator to DtaSelect-Filter',
                                       formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    _parser.add_argument('--sqts', required=True, nargs='+', type=str, help='path to SQT file')
+    _parser.add_argument('--sqts', required=True, nargs='+', type=str, help='path to SQT files')
     _parser.add_argument('--fastas', required=True, nargs='+', type=str,
-                         help='path to FASTA file (must contain decoys and target proteins)')
+                         help='path to FASTA files (must contain decoys and target proteins)')
     _parser.add_argument('--out', required=True, type=str, help='path to write output file')
 
     _parser.add_argument('--protein_fdr', required=False, type=float, default=0.01, help='protein level FDR')
@@ -65,6 +63,9 @@ def parse_args() -> argparse.Namespace:
                          help='number of iterations to preform during the semi-supervized training loop')
     _parser.add_argument('--timscore', required=False, default=False, type=bool,
                          help='use timscore and convert to timscore DTASelect-filter.txt')
+    _parser.add_argument('--mass_alignment', required=False, default=True, type=bool,
+                         help='Align all masses within each sqt file, and recalculate ppm. Alignment uses a 1D polyfit '
+                              'fitted to the mass ppm drift vs retention time for peptides >= 95th percentile xcorr.')
 
     return _parser.parse_args()
 
@@ -83,7 +84,8 @@ def run():
     dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
                                     search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
                                     args.min_length, args.max_length, args.semi, args.decoy_prefix, args.xgboost,
-                                    args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter, args.timscore)
+                                    args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter, args.timscore,
+                                    args.mass_alignment)
 
     with open(Path(args.out), 'w') as file:
         file.write(dta_filter_content)
@@ -93,7 +95,7 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
                peptide_fdr: float, psm_fdr: float, min_peptides: int, search_xml: TextIOWrapper | StringIO,
                enzyme_regex: str, enzyme_term:bool, missed_cleavage: int, min_length: int, max_length: int, semi: bool,
                decoy_prefix: str, xgboost: bool, test_fdr: float, folds: int, workers: int, sqt_stems: list[str],
-               max_iter: int, timscore: bool) -> str:
+               max_iter: int, timscore: bool, mass_alignment: bool) -> str:
     """
     What a mess of code...
 
@@ -102,9 +104,16 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
     """
 
     sqt_dfs = [convert_to_csv(sqt, sqt_stem) for sqt, sqt_stem in zip(sqts, sqt_stems)]
+    if mass_alignment is True:
+        _ = [align_mass(sqt_df) for sqt_df in sqt_dfs]
     sqt_df = pd.concat(sqt_dfs, ignore_index=True)
     sqt_df = sqt_df[sqt_df['xcorr'] > 0.0]
-    pin_df = convert_to_moka(sqt_df)
+
+    #sqt_df['xcorr_mean'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('mean')
+    #sqt_df['xcorr_std'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('std')
+    #sqt_df['delta_cn'] = (sqt_df['xcorr'] - sqt_df['xcorr_mean']).divide(sqt_df['xcorr_std'])
+    #sqt_df['delta_cn'] = sqt_df['delta_cn'].fillna(value=0)
+    #sqt_df['delta_cn'] = sqt_df['delta_cn'].replace([np.inf, -np.inf], 0)
 
     # Override default/inputted attributes if search.xml file is not None
     if search_xml:
@@ -117,6 +126,18 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
 
     fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas)]
     fasta_dict = {e[0]: {'sequence': e[1], 'description': e[2]} for e in fasta_elems}
+
+    pin_df = convert_to_moka(sqt_df)
+
+    # TODO: Fix for peptides like X.XXXXX(12312).X
+    if enzyme_term is True:
+        pin_df['tryp'] = [int(peptide[0] in enzyme_regex[1:-1]) + int(peptide[-3] in enzyme_regex[1:-1]) for peptide in sqt_df['sequence']]
+    else:
+        pin_df['tryp'] = [int(peptide[2] in enzyme_regex[1:-1]) + int(peptide[-1] in enzyme_regex[1:-1]) for peptide in sqt_df['sequence']]
+
+    if any(sqt_df['tims_score']) and timscore :
+        pin_df['tims_score'] = sqt_df['tims_score']
+        pin_df['tims_score'] = pin_df['tims_score'].fillna(value=0)
 
     psms = mokapot.read_pin(pin_files=pin_df)
 
