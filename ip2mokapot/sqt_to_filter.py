@@ -6,6 +6,7 @@ from pathlib import Path
 from collections import Counter
 
 import mokapot
+import numpy as np
 import pandas as pd
 from serenipy import dtaselectfilter
 from xgboost import XGBClassifier
@@ -66,7 +67,10 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--mass_alignment', required=False, default=True, type=bool,
                          help='Align all masses within each sqt file, and recalculate ppm. Alignment uses a 1D polyfit '
                               'fitted to the mass ppm drift vs retention time for peptides >= 95th percentile xcorr.')
-
+    _parser.add_argument('--max_mline', required=False, default=5, type=int,
+                         help='The maximum number of m lines to use for input to mokapot.')
+    _parser.add_argument('--seed', required=False, default=None, type=int,
+                         help='The random seed to use, for reproducibility.')
     return _parser.parse_args()
 
 
@@ -74,6 +78,7 @@ def run():
     """
     mokafilter entrypoint in setup.py.
     Parse args and convert sqts and fasta files into TextIO
+
     """
     args = parse_args()
     sqts = [Path(sqt).open() for sqt in args.sqts]
@@ -85,7 +90,7 @@ def run():
                                     search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
                                     args.min_length, args.max_length, args.semi, args.decoy_prefix, args.xgboost,
                                     args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter, args.timscore,
-                                    args.mass_alignment)
+                                    args.mass_alignment, args.max_mline, args.seed)
 
     with open(Path(args.out), 'w') as file:
         file.write(dta_filter_content)
@@ -95,19 +100,23 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
                peptide_fdr: float, psm_fdr: float, min_peptides: int, search_xml: TextIOWrapper | StringIO,
                enzyme_regex: str, enzyme_term:bool, missed_cleavage: int, min_length: int, max_length: int, semi: bool,
                decoy_prefix: str, xgboost: bool, test_fdr: float, folds: int, workers: int, sqt_stems: list[str],
-               max_iter: int, timscore: bool, mass_alignment: bool) -> str:
+               max_iter: int, timscore: bool, mass_alignment: bool, max_mline: int, seed: int) -> str:
     """
     What a mess of code...
 
     Entrypoint for both CLI tool and streamlit app, as such all files but be of IO type (StringIO or TextIO)
     :return: str - the string contents of the output DTASelect-filter.txt file
     """
+    # Set the random seed:
+    if seed:
+        np.random.seed(seed)
 
     sqt_dfs = [convert_to_csv(sqt, sqt_stem) for sqt, sqt_stem in zip(sqts, sqt_stems)]
     if mass_alignment is True:
         _ = [align_mass(sqt_df) for sqt_df in sqt_dfs]
     sqt_df = pd.concat(sqt_dfs, ignore_index=True)
     sqt_df = sqt_df[sqt_df['xcorr'] > 0.0]
+    sqt_df = sqt_df[sqt_df['m_line'] < max_mline]
 
     #sqt_df['xcorr_mean'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('mean')
     #sqt_df['xcorr_std'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('std')

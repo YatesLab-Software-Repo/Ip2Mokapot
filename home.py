@@ -34,6 +34,12 @@ with st.expander('Advanced'):
 
     timscore = st.checkbox(label='timscore', value=False)
     mass_alignment = st.checkbox(label='mass_alignment', value=True)
+    max_mline = st.number_input(label='max_mline', value=5)
+    use_random_seed = st.checkbox(label='random_seed', value=False)
+
+    random_seed= None
+    if use_random_seed is True:
+        random_seed = st.number_input(label='random_seed', value=42)
 
 if st.button('start') and sqts and fastas:
 
@@ -47,6 +53,7 @@ if st.button('start') and sqts and fastas:
 
     dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
                                     search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length, semi,
-                                    decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore, mass_alignment)
+                                    decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore, mass_alignment,
+                                    max_mline, random_seed)
 
     st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content, file_name='DTASelect-filter.txt')
