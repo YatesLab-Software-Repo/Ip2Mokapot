@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import argparse
-from io import StringIO, TextIOWrapper
 from pathlib import Path
 from collections import Counter
+from statistics import mean
+from typing import List, Union
 
 import mokapot
 import numpy as np
 import pandas as pd
 from tabulate import tabulate
 from serenipy import dtaselectfilter
+from typing.io import IO
 from xgboost import XGBClassifier
 
-from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, align_mass, align_mobility
+from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, align_mass, align_mobility, \
+    parse_dta_args
 from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein
 
 
@@ -89,51 +92,65 @@ def run():
     sqt_stems = [str(Path(sqt).stem) for sqt in args.sqts]
     fastas = [Path(fasta).open() for fasta in args.fastas]
     search_xml = Path(args.search_xml).open()
-
-    import shlex
-
-    def parse_dta_args(arg_string):
-        args = shlex.split(arg_string)
-        arg_dict = {}
-        for i in range(len(args)):
-            if args[i].startswith("--"):
-                if i + 1 < len(args) and not args[i + 1].startswith("--"):
-                    arg_dict[args[i]] = args[i + 1]
-                else:
-                    arg_dict[args[i]] = True
-        return arg_dict
-
-
-    if args.dta_params:
-        with open(args.dta_params) as dta_params:
-            dta_args = parse_dta_args(dta_params.read().rstrip())
-            fp_fdr = dta_args.get('--fp', 1.0)
-            pfp_fdr = dta_args.get('--pfp', 1.0)
-            sfp_fdr = dta_args.get('--sfp', 1.0)
-            args.protein_fdr, args.peptide_fdr, args.psm_fdr = pfp_fdr, sfp_fdr, fp_fdr
-
+    dta_params = Path(args.dta_params).open()
 
     dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
                                     search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
                                     args.min_length, args.max_length, args.semi, args.decoy_prefix, args.xgboost,
                                     args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter, args.timscore,
-                                    args.mass_alignment, args.max_mline, args.seed)
+                                    args.mass_alignment, args.max_mline, args.seed, dta_params)
 
     with open(Path(args.out), 'w') as file:
         file.write(dta_filter_content)
 
 
-def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper | StringIO], protein_fdr: float,
-               peptide_fdr: float, psm_fdr: float, min_peptides: int, search_xml: TextIOWrapper | StringIO,
-               enzyme_regex: str, enzyme_term:bool, missed_cleavage: int, min_length: int, max_length: int, semi: bool,
-               decoy_prefix: str, xgboost: bool, test_fdr: float, folds: int, workers: int, sqt_stems: list[str],
-               max_iter: int, timscore: bool, mass_alignment: bool, max_mline: int, seed: int) -> str:
+def mokafilter(sqts: List[IO[str]],
+               fastas: List[IO[str]],
+               protein_fdr: float,
+               peptide_fdr: float,
+               psm_fdr: float,
+               min_peptides: int,
+               search_xml: Union[IO[str], None],
+               enzyme_regex: str,
+               enzyme_term: bool,
+               missed_cleavage: int,
+               min_length: int,
+               max_length: int,
+               semi: bool,
+               decoy_prefix: str,
+               xgboost: bool,
+               test_fdr: float,
+               folds: int, workers: int,
+               sqt_stems: list[str],
+               max_iter: int,
+               timscore: bool,
+               mass_alignment: bool,
+               max_mline: int,
+               seed: Union[int, None],
+               dta_params: Union[IO[str], None]) -> str:
     """
     What a mess of code...
 
     Entrypoint for both CLI tool and streamlit app, as such all files but be of IO type (StringIO or TextIO)
     :return: str - the string contents of the output DTASelect-filter.txt file
     """
+
+    if dta_params:
+        dta_args = parse_dta_args(dta_params.read().rstrip())
+        fp_fdr = float(dta_args.get('--fp', 1.0))
+        pfp_fdr = float(dta_args.get('--pfp', 1.0))
+        sfp_fdr = float(dta_args.get('--sfp', 1.0))
+        min_peptides = int(dta_args.get('-p', min_peptides))
+        protein_fdr, peptide_fdr, psm_fdr = pfp_fdr, sfp_fdr, fp_fdr
+
+    if search_xml:
+        xml_dict = xml_to_dict(search_xml)
+        missed_cleavage = int(xml_dict['enzyme_info']['max_num_internal_mis_cleavage'])
+        semi = int(xml_dict['enzyme_info']['specificity']) != 2
+        enzyme_regex = f"[{''.join(xml_dict['enzyme_info']['residues']['residue'])}]"
+        enzyme_term = xml_dict['enzyme_info']['type'] == 'true'
+        min_length = int(xml_dict['peptide_length_limits']['minimum'])
+
     print(tabulate([
         ["sqts", sqts],
         ["fastas", fastas],
@@ -161,7 +178,6 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
         ["seed", seed],
     ], headers=['Argument', 'Value'], missingval='[default]'))
 
-
     # Set the random seed:
     if seed:
         np.random.seed(seed)
@@ -173,20 +189,13 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
     sqt_df = sqt_df[sqt_df['xcorr'] > 0.0]
     sqt_df = sqt_df[sqt_df['m_line'] < max_mline]
 
-    #sqt_df['xcorr_mean'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('mean')
-    #sqt_df['xcorr_std'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('std')
-    #sqt_df['delta_cn'] = (sqt_df['xcorr'] - sqt_df['xcorr_mean']).divide(sqt_df['xcorr_std'])
-    #sqt_df['delta_cn'] = sqt_df['delta_cn'].fillna(value=0)
-    #sqt_df['delta_cn'] = sqt_df['delta_cn'].replace([np.inf, -np.inf], 0)
+    # sqt_df['xcorr_mean'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('mean')
+    # sqt_df['xcorr_std'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('std')
+    # sqt_df['delta_cn'] = (sqt_df['xcorr'] - sqt_df['xcorr_mean']).divide(sqt_df['xcorr_std'])
+    # sqt_df['delta_cn'] = sqt_df['delta_cn'].fillna(value=0)
+    # sqt_df['delta_cn'] = sqt_df['delta_cn'].replace([np.inf, -np.inf], 0)
 
     # Override default/inputted attributes if search.xml file is not None
-    if search_xml:
-        xml_dict = xml_to_dict(search_xml)
-        missed_cleavage = int(xml_dict['enzyme_info']['max_num_internal_mis_cleavage'])
-        semi = int(xml_dict['enzyme_info']['specificity']) != 2
-        enzyme_regex = f"[{''.join(xml_dict['enzyme_info']['residues']['residue'])}]"
-        enzyme_term = xml_dict['enzyme_info']['type'] == 'true'
-        min_length = int(xml_dict['peptide_length_limits']['minimum'])
 
     fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas)]
     fasta_dict = {e[0]: {'sequence': e[1], 'description': e[2]} for e in fasta_elems}
@@ -195,11 +204,13 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
 
     # TODO: Fix for peptides like X.XXXXX(12312).X
     if enzyme_term is True:
-        pin_df['tryp'] = [int(peptide[0] in enzyme_regex[1:-1]) + int(peptide[-3] in enzyme_regex[1:-1]) for peptide in sqt_df['sequence']]
+        pin_df['tryp'] = [int(peptide[0] in enzyme_regex[1:-1]) + int(peptide[-3] in enzyme_regex[1:-1]) for peptide in
+                          sqt_df['sequence']]
     else:
-        pin_df['tryp'] = [int(peptide[2] in enzyme_regex[1:-1]) + int(peptide[-1] in enzyme_regex[1:-1]) for peptide in sqt_df['sequence']]
+        pin_df['tryp'] = [int(peptide[2] in enzyme_regex[1:-1]) + int(peptide[-1] in enzyme_regex[1:-1]) for peptide in
+                          sqt_df['sequence']]
 
-    if any(sqt_df['tims_score']) and timscore :
+    if any(sqt_df['tims_score']) and timscore:
         pin_df['tims_score'] = sqt_df['tims_score']
         pin_df['tims_score'] = pin_df['tims_score'].fillna(value=0)
 
@@ -296,38 +307,50 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
         for peptide_line in result.peptide_lines:
             peptide_line.redundancy = peptide_counts[peptide_line.sequence]
 
+
     # Finalize DTASelect-filter.txt lines
     unfiltered_proteins = len(target_protein_results) + len(decoy_protein_results)
     unfiltered_peptides = len(target_peptide_results) + len(decoy_peptide_results)
     unfiltered_psms = len(target_psm_results) + len(decoy_psm_results)
 
-    filtered_proteins = len(filtered_target_protein_results) + len(filtered_decoy_protein_results)
-    filtered_peptides = len(filtered_target_peptide_results) + len(filtered_decoy_peptide_results)
-    filtered_psms = len(filtered_target_psm_results) + len(filtered_decoy_psm_results)
+    target_results = [result for result in filter_results if
+                      any(['Reverse_' not in protein_line.locus_name for protein_line in result.protein_lines])]
+    target_protein_groups = len([result.protein_lines[0].locus_name for result in target_results])
+    target_peptides = len(
+        {(peptide_line.charge, peptide_line.sequence[2:-2]) for result in target_results for peptide_line in
+         result.peptide_lines})
+    target_spectra = sum([result.protein_lines[0].spectrum_count for result in target_results])
 
-    forward_proteins = len(filtered_target_protein_results)
-    forward_peptides = len(filtered_target_peptide_results)
-    forward_psms = len(filtered_target_psm_results)
+    decoy_results = [result for result in filter_results if
+                     all(['Reverse_' in protein_line.locus_name for protein_line in result.protein_lines])]
+    decoy_protein_groups = len([result.protein_lines[0].locus_name for result in decoy_results])
+    decoy_peptides = len(
+        {(peptide_line.charge, peptide_line.sequence[2:-2]) for result in decoy_results for peptide_line in
+         result.peptide_lines})
+    decoy_spectra = sum([result.protein_lines[0].spectrum_count for result in decoy_results])
 
-    decoy_proteins = len(filtered_decoy_protein_results)
-    decoy_peptides = len(filtered_decoy_peptide_results)
-    decoy_psms = len(filtered_decoy_psm_results)
+    try:
+        protein_fdr = round(decoy_protein_groups / (decoy_protein_groups + target_protein_groups) * 100, 4)
+    except ZeroDivisionError:
+        protein_fdr = 'NA'
 
-    protein_fdr = len(filtered_decoy_protein_results) / (len(filtered_target_protein_results) +
-                                                         len(filtered_decoy_protein_results)) * 100
-    peptide_fdr = len(filtered_decoy_peptide_results) / (len(filtered_target_peptide_results) +
-                                                         len(filtered_decoy_peptide_results)) * 100
-    psm_fdr = len(filtered_decoy_psm_results) / (len(filtered_target_psm_results) +
-                                                 len(filtered_decoy_psm_results)) * 100
+    try:
+        peptide_fdr = round(decoy_peptides / (decoy_peptides + target_peptides) * 100, 4)
+    except ZeroDivisionError:
+        peptide_fdr = 'NA'
+    try:
+        spectra_fdr = round(decoy_spectra / (decoy_spectra + target_spectra) * 100, 4)
+    except ZeroDivisionError:
+        spectra_fdr = 'NA'
 
     end_lines = [f'	Proteins	Peptide IDs	Spectra\n',
                  f'Unfiltered	{unfiltered_proteins}  {unfiltered_peptides}  {unfiltered_psms}\n',
-                 f'Filtered	{filtered_proteins}  {filtered_peptides}  {filtered_psms}\n',
-                 f'Forward	{forward_proteins}  {forward_peptides}  {forward_psms}\n',
+                 f'Filtered	{decoy_protein_groups + target_protein_groups}  {target_peptides + decoy_peptides}  {target_spectra + decoy_spectra}\n',
+                 f'Forward	{target_protein_groups}  {target_peptides}  {target_spectra}\n',
                  f'Redundant Forward matches	{0}  {0}  {0}\n',
-                 f'Decoy matches	{decoy_proteins}  {decoy_peptides}  {decoy_psms}\n',
+                 f'Decoy matches	{decoy_protein_groups}  {decoy_peptides}  {decoy_spectra}\n',
                  f'Redundant Decoy matches	{0}  {0}  {0}\n',
-                 f'Forward FDR	{protein_fdr}	{peptide_fdr}	{psm_fdr}\n']
+                 f'Forward FDR	{protein_fdr}	{peptide_fdr}	{spectra_fdr}\n']
 
     if timscore is True:
         h_lines = ['DTASelect v2.1.12\n',

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import shlex
 from io import StringIO, TextIOWrapper
 
 import numpy as np
@@ -12,6 +13,16 @@ from sklearn.preprocessing import MinMaxScaler
 from .util import calculate_protein_coverage, get_unmodified_peptide, map_protein_to_peptides, map_peptide_to_specid
 
 
+def parse_dta_args(arg_string):
+    args = shlex.split(arg_string)
+    arg_dict = {}
+    for i in range(len(args)):
+        if args[i].startswith("--"):
+            if i + 1 < len(args) and not args[i + 1].startswith("--"):
+                arg_dict[args[i]] = args[i + 1]
+            else:
+                arg_dict[args[i]] = True
+    return arg_dict
 def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.DataFrame:
     """
     Convert SQT filee into a pandas df

@@ -9,6 +9,7 @@ st.text('Converts SQT to DTASelect-filter.txt with mokapot')
 sqts = st.file_uploader(label='sqt', type='.sqt', accept_multiple_files=True)
 fastas = st.file_uploader(label='fasta', type='.fasta', accept_multiple_files=True)
 search_xml = st.file_uploader(label='search_xml', type='.xml')
+dta_params = st.file_uploader(label='dta_params', type='.params')
 
 with st.expander('Advanced'):
     protein_fdr = st.number_input(label='protein_fdr', value=0.01)
@@ -51,9 +52,14 @@ if st.button('start') and sqts and fastas:
     if search_xml:
         search_xml_io = StringIO(search_xml.getvalue().decode("utf-8"))
 
+    dta_params_io = None
+    if dta_params:
+        dta_params_io = StringIO(dta_params.getvalue().decode("utf-8"))
+
+
     dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
                                     search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length, semi,
                                     decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore, mass_alignment,
-                                    max_mline, random_seed)
+                                    max_mline, random_seed, dta_params_io)
 
     st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content, file_name='DTASelect-filter.txt')
