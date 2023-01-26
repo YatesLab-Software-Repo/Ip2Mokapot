@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from collections import Counter
-from statistics import mean
 from typing import List, Union
 
 import mokapot
@@ -316,17 +315,23 @@ def mokafilter(sqts: List[IO[str]],
     target_results = [result for result in filter_results if
                       any(['Reverse_' not in protein_line.locus_name for protein_line in result.protein_lines])]
     target_protein_groups = len([result.protein_lines[0].locus_name for result in target_results])
-    target_peptides = len(
-        {(peptide_line.charge, peptide_line.sequence[2:-2]) for result in target_results for peptide_line in
-         result.peptide_lines})
+    target_proteins = sum([len(result.protein_lines) for result in target_results])
+
+    target_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in target_results for peptide_line in
+         result.peptide_lines]
+    target_peptides = len(set(target_peptide_charge_pairs))
+    total_target_peptides = len(target_peptide_charge_pairs)
     target_spectra = sum([result.protein_lines[0].spectrum_count for result in target_results])
 
     decoy_results = [result for result in filter_results if
                      all(['Reverse_' in protein_line.locus_name for protein_line in result.protein_lines])]
     decoy_protein_groups = len([result.protein_lines[0].locus_name for result in decoy_results])
-    decoy_peptides = len(
-        {(peptide_line.charge, peptide_line.sequence[2:-2]) for result in decoy_results for peptide_line in
-         result.peptide_lines})
+    decoy_proteins = sum([len(result.protein_lines) for result in decoy_results])
+
+    decoy_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in decoy_results for peptide_line in
+         result.peptide_lines]
+    decoy_peptides = len(set(decoy_peptide_charge_pairs))
+    total_decoy_peptides = len(decoy_peptide_charge_pairs)
     decoy_spectra = sum([result.protein_lines[0].spectrum_count for result in decoy_results])
 
     try:
@@ -347,9 +352,9 @@ def mokafilter(sqts: List[IO[str]],
                  f'Unfiltered	{unfiltered_proteins}  {unfiltered_peptides}  {unfiltered_psms}\n',
                  f'Filtered	{decoy_protein_groups + target_protein_groups}  {target_peptides + decoy_peptides}  {target_spectra + decoy_spectra}\n',
                  f'Forward	{target_protein_groups}  {target_peptides}  {target_spectra}\n',
-                 f'Redundant Forward matches	{0}  {0}  {0}\n',
+                 f'Redundant Forward matches	{target_proteins - target_protein_groups}  {total_target_peptides - target_peptides}  {0}\n',
                  f'Decoy matches	{decoy_protein_groups}  {decoy_peptides}  {decoy_spectra}\n',
-                 f'Redundant Decoy matches	{0}  {0}  {0}\n',
+                 f'Redundant Decoy matches	{decoy_proteins - decoy_protein_groups}  {total_decoy_peptides - decoy_peptides}  {0}\n',
                  f'Forward FDR	{protein_fdr}	{peptide_fdr}	{spectra_fdr}\n']
 
     if timscore is True:
