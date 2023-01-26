@@ -8,6 +8,7 @@ from collections import Counter
 import mokapot
 import numpy as np
 import pandas as pd
+from tabulate import tabulate
 from serenipy import dtaselectfilter
 from xgboost import XGBClassifier
 
@@ -71,6 +72,9 @@ def parse_args() -> argparse.Namespace:
                          help='The maximum number of m lines to use for input to mokapot.')
     _parser.add_argument('--seed', required=False, default=None, type=int,
                          help='The random seed to use, for reproducibility.')
+    _parser.add_argument('--dta_params', required=False, default=None, type=str,
+                         help='Path to dtaSelect.paraas file')
+
     return _parser.parse_args()
 
 
@@ -85,6 +89,29 @@ def run():
     sqt_stems = [str(Path(sqt).stem) for sqt in args.sqts]
     fastas = [Path(fasta).open() for fasta in args.fastas]
     search_xml = Path(args.search_xml).open()
+
+    import shlex
+
+    def parse_dta_args(arg_string):
+        args = shlex.split(arg_string)
+        arg_dict = {}
+        for i in range(len(args)):
+            if args[i].startswith("--"):
+                if i + 1 < len(args) and not args[i + 1].startswith("--"):
+                    arg_dict[args[i]] = args[i + 1]
+                else:
+                    arg_dict[args[i]] = True
+        return arg_dict
+
+
+    if args.dta_params:
+        with open(args.dta_params) as dta_params:
+            dta_args = parse_dta_args(dta_params.read().rstrip())
+            fp_fdr = dta_args.get('--fp', 1.0)
+            pfp_fdr = dta_args.get('--pfp', 1.0)
+            sfp_fdr = dta_args.get('--sfp', 1.0)
+            args.protein_fdr, args.peptide_fdr, args.psm_fdr = pfp_fdr, sfp_fdr, fp_fdr
+
 
     dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
                                     search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
@@ -107,6 +134,34 @@ def mokafilter(sqts: list[TextIOWrapper | StringIO], fastas: list[TextIOWrapper 
     Entrypoint for both CLI tool and streamlit app, as such all files but be of IO type (StringIO or TextIO)
     :return: str - the string contents of the output DTASelect-filter.txt file
     """
+    print(tabulate([
+        ["sqts", sqts],
+        ["fastas", fastas],
+        ['protein_fdr', protein_fdr],
+        ['peptide_fdr', peptide_fdr],
+        ["psm_fdr", psm_fdr],
+        ["min_peptides", min_peptides],
+        ["search_xml", search_xml],
+        ["enzyme_regex", enzyme_regex],
+        ["enzyme_term", enzyme_term],
+        ["missed_cleavage", missed_cleavage],
+        ["min_length", min_length],
+        ["max_length", max_length],
+        ["semi", semi],
+        ["decoy_prefix", decoy_prefix],
+        ["xgboost", xgboost],
+        ['test_fdr', test_fdr],
+        ["folds", folds],
+        ["workers", workers],
+        ["sqt_stems", sqt_stems],
+        ["max_iter", max_iter],
+        ["timscore", timscore],
+        ["mass_alignment", mass_alignment],
+        ["max_mline", max_mline],
+        ["seed", seed],
+    ], headers=['Argument', 'Value'], missingval='[default]'))
+
+
     # Set the random seed:
     if seed:
         np.random.seed(seed)
