@@ -404,3 +404,15 @@ def read_fasta(
     )
 
     return parsed
+
+def strip_modifications(peptide_sequence: str) -> str:
+    """
+    Removes any non-amino-acid characters from the given peptide sequence.
+
+    Args:
+        peptide_sequence: The peptide sequence to be stripped of modifications.
+
+    Returns:
+        The peptide sequence with all non-amino-acid characters removed.
+    """
+    return ''.join([c for c in peptide_sequence if c in 'ACDEFGHIKLMNPQRSTVWY'])

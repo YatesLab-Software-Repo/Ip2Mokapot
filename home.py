@@ -9,16 +9,25 @@ st.text('Generates DTASelect-filter.txt with mokapot')
 with st.expander('Help'):
     st.markdown(HELP_DESCRIPTION)
 
-
 sqts = st.file_uploader(label='sqt', type='.sqt', accept_multiple_files=True, help=SQTS_DESCRIPTION)
 fastas = st.file_uploader(label='fasta', type='.fasta', accept_multiple_files=True, help=FASTAS_DESCRIPTION)
 search_xml = st.file_uploader(label='search_xml', type='.xml', help=SEARCH_XML_DESCRIPTION)
-dta_params = st.file_uploader(label='dta_params', type='.params', help=DTASELECT_PARAMS_DESCRIPTION)
+
+c1, c2 = st.columns(2)
+dta_params_input_type = c1.radio(
+    "dta_params_input",
+    ('text','file'))
+dta_params, dta_params_txt = None, None
+if dta_params_input_type == 'file':
+    dta_params = c2.file_uploader(label='dta_params', type='.params', help=DTASELECT_PARAMS_DESCRIPTION)
+else:
+    dta_params_txt = c2.text_input(label='dta_params', value='', help=DTASELECT_PARAMS_DESCRIPTION)
+
 
 with st.expander('Advanced'):
     protein_fdr, peptide_fdr, psm_fdr, min_peptides = 0.01, 0.01, 0.01, 1
     if not dta_params:
-        protein_fdr = st.number_input(label='protein_fdr', value=0.01, help = PROTEIN_FDR_DESCRIPTION)
+        protein_fdr = st.number_input(label='protein_fdr', value=0.01, help=PROTEIN_FDR_DESCRIPTION)
         peptide_fdr = st.number_input(label='peptide_fdr', value=0.01, help=PEPTIDE_FDR_DESCRIPTION)
         psm_fdr = st.number_input(label='psm_fdr', value=0.01, help=PSM_FDR_DESCRIPTION)
         min_peptides = st.number_input(label='min_peptides', value=1, help=MIN_PEPTIDES_DESCRIPTION)
@@ -48,7 +57,7 @@ with st.expander('Advanced'):
     if use_random_seed is True:
         random_seed = st.number_input(label='random_seed', value=42)
 
-if st.button('start'):
+if st.button('Run'):
 
     if not sqts or not fastas:
         st.warning('Please upload the required file types: SQT & FASTA')
@@ -65,10 +74,14 @@ if st.button('start'):
     dta_params_io = None
     if dta_params:
         dta_params_io = StringIO(dta_params.getvalue().decode("utf-8"))
+    elif dta_params_txt:
+        dta_params_io = StringIO(dta_params_txt)
 
     dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
-                                    search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length, semi,
-                                    decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore, mass_alignment,
+                                    search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length,
+                                    semi,
+                                    decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore,
+                                    mass_alignment,
                                     max_mline, random_seed, dta_params_io)
 
     st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content, file_name='DTASelect-filter.txt')

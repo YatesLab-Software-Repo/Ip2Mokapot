@@ -14,11 +14,12 @@ from typing.io import IO
 from xgboost import XGBClassifier
 
 from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, align_mass, parse_dta_args
-from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein
+from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein, strip_modifications
 from .config import *
 
 # TODO: Make option to save intermediate mokapot files somewhere
 # TODO: Add option to train hyper params
+# TODO: Enable grouping when multiple search.xml files are uploaded
 
 def parse_args() -> argparse.Namespace:
     """
@@ -30,13 +31,14 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--sqts', required=True, nargs='+', type=str, help=SQTS_DESCRIPTION)
     _parser.add_argument('--fastas', required=True, nargs='+', type=str, help=FASTAS_DESCRIPTION)
     _parser.add_argument('--out', required=True, type=str, help=OUT_DESCRIPTION)
+    _parser.add_argument('--search_xml', required=False, type=str, help=SEARCH_XML_DESCRIPTION)
+    _parser.add_argument('--dta_params', required=False, type=str, help=DTASELECT_PARAMS_DESCRIPTION)
 
     _parser.add_argument('--protein_fdr', required=False, type=float, default=0.01, help=PROTEIN_FDR_DESCRIPTION)
     _parser.add_argument('--peptide_fdr', required=False, type=float, default=0.01, help=PEPTIDE_FDR_DESCRIPTION)
     _parser.add_argument('--psm_fdr', required=False, type=float, default=0.01, help=PSM_FDR_DESCRIPTION)
     _parser.add_argument('--min_peptides', required=False, default=1, type=int, help=MIN_PEPTIDES_DESCRIPTION)
 
-    _parser.add_argument('--search_xml', required=False, help=SEARCH_XML_DESCRIPTION)
     _parser.add_argument('--enzyme_regex', required=False, default='[KR]', help=ENZYME_REGEX_DESCRIPTION)
     _parser.add_argument('--enzyme_term', required=False, default=True, help=ENZYME_TERM_DESCRIPTION)
     _parser.add_argument('--missed_cleavage', required=False, default=0, type=int, help=MISSED_CLEAVAGE_DESCRIPTION)
@@ -55,7 +57,6 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--mass_alignment', required=False, default=True, type=bool, help=MASS_ALIGNMENT_DESCRIPTION)
     _parser.add_argument('--max_mline', required=False, default=5, type=int, help=MAX_MLINE_DESCRIPTION)
     _parser.add_argument('--seed', required=False, default=None, type=int, help=MAX_SEED_DESCRIPTION)
-    _parser.add_argument('--dta_params', required=False, default=None, type=str, help=DTASELECT_PARAMS_DESCRIPTION)
 
     return _parser.parse_args()
 
@@ -170,22 +171,13 @@ def mokafilter(sqts: List[IO[str]],
     sqt_df = sqt_df[sqt_df['xcorr'] > 0.0]
     sqt_df = sqt_df[sqt_df['m_line'] < max_mline]
 
-    # sqt_df['xcorr_mean'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('mean')
-    # sqt_df['xcorr_std'] = sqt_df.groupby(by=["file", "low_scan"])['xcorr'].transform('std')
-    # sqt_df['delta_cn'] = (sqt_df['xcorr'] - sqt_df['xcorr_mean']).divide(sqt_df['xcorr_std'])
-    # sqt_df['delta_cn'] = sqt_df['delta_cn'].fillna(value=0)
-    # sqt_df['delta_cn'] = sqt_df['delta_cn'].replace([np.inf, -np.inf], 0)
-
-    # Override default/inputted attributes if search.xml file is not None
-
     fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas)]
     fasta_dict = {e[0]: {'sequence': e[1], 'description': e[2]} for e in fasta_elems}
 
     pin_df = convert_to_moka(sqt_df)
 
-    # TODO: Fix for peptides like X.XXXXX(12312).X
     if enzyme_term is True:
-        pin_df['tryp'] = [int(peptide[0] in enzyme_regex[1:-1]) + int(peptide[-3] in enzyme_regex[1:-1]) for peptide in
+        pin_df['tryp'] = [int(peptide[0] in enzyme_regex[1:-1]) + int(strip_modifications(peptide[:-2])[-1] in enzyme_regex[1:-1]) for peptide in
                           sqt_df['sequence']]
     else:
         pin_df['tryp'] = [int(peptide[2] in enzyme_regex[1:-1]) + int(peptide[-1] in enzyme_regex[1:-1]) for peptide in

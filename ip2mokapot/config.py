@@ -13,7 +13,7 @@ MIN_PEPTIDES_DESCRIPTION = 'The minimum number of peptides required to identify 
 
 # Search.xml arguments
 ENZYME_REGEX_DESCRIPTION = 'The regex string to determine enzyme sites (should match original search settings!)'
-ENZYME_TERM_DESCRIPTION = 'The regex term (should match original search settings!)'
+ENZYME_TERM_DESCRIPTION = 'True if enzyme cleaves at c-term, False if enzyme cleaves at n-term (should match original search settings!)'
 MISSED_CLEAVAGE_DESCRIPTION = 'The number of internal peptide missed cleavages to allow (should match original search settings!)'
 MIN_LENGTH_DESCRIPTION = 'The minimum peptide length (should match original search settings)'
 MAX_LENGTH_DESCRIPTION = 'The maximum peptide length (should match original search settings)'
