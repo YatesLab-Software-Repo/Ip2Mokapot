@@ -13,10 +13,9 @@ from serenipy import dtaselectfilter
 from typing.io import IO
 from xgboost import XGBClassifier
 
-from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, align_mass, align_mobility, \
-    parse_dta_args
+from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, align_mass, parse_dta_args
 from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein
-
+from .config import *
 
 # TODO: Make option to save intermediate mokapot files somewhere
 # TODO: Add option to train hyper params
@@ -26,56 +25,37 @@ def parse_args() -> argparse.Namespace:
     Argument parser for ip2mokapot
     :return: argparse.Namespace - parsed arsg
     """
-    _parser = argparse.ArgumentParser(description='Arguments for Percolator to DtaSelect-Filter',
+    _parser = argparse.ArgumentParser(description='Arguments for MokaFilter',
                                       formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    _parser.add_argument('--sqts', required=True, nargs='+', type=str, help='path to SQT files')
-    _parser.add_argument('--fastas', required=True, nargs='+', type=str,
-                         help='path to FASTA files (must contain decoys and target proteins)')
-    _parser.add_argument('--out', required=True, type=str, help='path to write output file')
+    _parser.add_argument('--sqts', required=True, nargs='+', type=str, help=SQTS_DESCRIPTION)
+    _parser.add_argument('--fastas', required=True, nargs='+', type=str, help=FASTAS_DESCRIPTION)
+    _parser.add_argument('--out', required=True, type=str, help=OUT_DESCRIPTION)
 
-    _parser.add_argument('--protein_fdr', required=False, type=float, default=0.01, help='protein level FDR')
-    _parser.add_argument('--peptide_fdr', required=False, type=float, default=0.01, help='peptide level FDR')
-    _parser.add_argument('--psm_fdr', required=False, type=float, default=0.01, help='psm level FDR')
-    _parser.add_argument('--min_peptides', required=False, default=1, type=int,
-                         help='min number of peptides required for a protein to be identified')
+    _parser.add_argument('--protein_fdr', required=False, type=float, default=0.01, help=PROTEIN_FDR_DESCRIPTION)
+    _parser.add_argument('--peptide_fdr', required=False, type=float, default=0.01, help=PEPTIDE_FDR_DESCRIPTION)
+    _parser.add_argument('--psm_fdr', required=False, type=float, default=0.01, help=PSM_FDR_DESCRIPTION)
+    _parser.add_argument('--min_peptides', required=False, default=1, type=int, help=MIN_PEPTIDES_DESCRIPTION)
 
-    _parser.add_argument('--search_xml', required=False,
-                         help='path to the search.xml file. USing this will override the following variables: '
-                              'enzyme_regex, missed_cleavage, min_length, semi')
-    _parser.add_argument('--enzyme_regex', required=False, default='[KR]',
-                         help='The regex string to determine enzyme sites')
-    _parser.add_argument('--enzyme_term', required=False, default=True,
-                         help='The regex term')
-    _parser.add_argument('--missed_cleavage', required=False, default=0, type=int,
-                         help='Number of internal peptide missed cleavages')
-    _parser.add_argument('--min_length', required=False, default=6, type=float, help='min peptide length')
-    _parser.add_argument('--max_length', required=False, default=50, type=float, help='max peptide length')
-    _parser.add_argument('--semi', required=False, default=False, type=bool,
-                         help='flag for whether peptides are semi enzymatic. set to True if both ends follow adhere '
-                              'to the enzyme_regex')
-    _parser.add_argument('--decoy_prefix', required=False, default='Reverse_', type=str,
-                         help='decoy prefix found int FASTA and SQT files. For IP2 use Reverse_')
+    _parser.add_argument('--search_xml', required=False, help=SEARCH_XML_DESCRIPTION)
+    _parser.add_argument('--enzyme_regex', required=False, default='[KR]', help=ENZYME_REGEX_DESCRIPTION)
+    _parser.add_argument('--enzyme_term', required=False, default=True, help=ENZYME_TERM_DESCRIPTION)
+    _parser.add_argument('--missed_cleavage', required=False, default=0, type=int, help=MISSED_CLEAVAGE_DESCRIPTION)
+    _parser.add_argument('--min_length', required=False, default=6, type=float, help=MIN_LENGTH_DESCRIPTION)
+    _parser.add_argument('--max_length', required=False, default=50, type=float, help=MAX_LENGTH_DESCRIPTION)
+    _parser.add_argument('--semi', required=False, default=False, type=bool, help=SEMI_DESCRIPTION)
+    _parser.add_argument('--decoy_prefix', required=False, default='Reverse_', type=str, help=DECOY_PREFIX_DESCRIPTION)
 
-    _parser.add_argument('--xgboost', required=False, default=True, type=bool,
-                         help='Use Xbgoost. If false will use percolator like algorithm')
-    _parser.add_argument('--test_fdr', required=False, default=0.01, type=float,
-                         help='test FDR to use during semi-supervized training loop')
-    _parser.add_argument('--folds', required=False, default=3, type=int, help='number of K-Folds to preform')
-    _parser.add_argument('--workers', required=False, default=1, type=int,
-                         help='number of workers (threads) to use for semi-supervized training loop')
-    _parser.add_argument('--max_iter', required=False, default=10, type=int,
-                         help='number of iterations to preform during the semi-supervized training loop')
-    _parser.add_argument('--timscore', required=False, default=False, type=bool,
-                         help='use timscore and convert to timscore DTASelect-filter.txt')
-    _parser.add_argument('--mass_alignment', required=False, default=True, type=bool,
-                         help='Align all masses within each sqt file, and recalculate ppm. Alignment uses a 1D polyfit '
-                              'fitted to the mass ppm drift vs retention time for peptides >= 95th percentile xcorr.')
-    _parser.add_argument('--max_mline', required=False, default=5, type=int,
-                         help='The maximum number of m lines to use for input to mokapot.')
-    _parser.add_argument('--seed', required=False, default=None, type=int,
-                         help='The random seed to use, for reproducibility.')
-    _parser.add_argument('--dta_params', required=False, default=None, type=str,
-                         help='Path to dtaSelect.paraas file')
+    _parser.add_argument('--xgboost', required=False, default=False, type=bool, help=XGBOOST_DESCRIPTION)
+    _parser.add_argument('--test_fdr', required=False, default=0.01, type=float, help=TEST_FDR_DESCRIPTION)
+    _parser.add_argument('--folds', required=False, default=3, type=int, help=FOLDS_DESCRIPTION)
+    _parser.add_argument('--workers', required=False, default=1, type=int, help=WORKERS_DESCRIPTION)
+    _parser.add_argument('--max_iter', required=False, default=10, type=int, help=MAX_ITER_DESCRIPTION)
+
+    _parser.add_argument('--timscore', required=False, default=False, type=bool, help=TIMSCORE_DESCRIPTION)
+    _parser.add_argument('--mass_alignment', required=False, default=True, type=bool, help=MASS_ALIGNMENT_DESCRIPTION)
+    _parser.add_argument('--max_mline', required=False, default=5, type=int, help=MAX_MLINE_DESCRIPTION)
+    _parser.add_argument('--seed', required=False, default=None, type=int, help=MAX_SEED_DESCRIPTION)
+    _parser.add_argument('--dta_params', required=False, default=None, type=str, help=DTASELECT_PARAMS_DESCRIPTION)
 
     return _parser.parse_args()
 
@@ -150,7 +130,7 @@ def mokafilter(sqts: List[IO[str]],
         enzyme_term = xml_dict['enzyme_info']['type'] == 'true'
         min_length = int(xml_dict['peptide_length_limits']['minimum'])
 
-    print(tabulate([
+    tabulated_args = tabulate([
         ["sqts", sqts],
         ["fastas", fastas],
         ['protein_fdr', protein_fdr],
@@ -175,7 +155,9 @@ def mokafilter(sqts: List[IO[str]],
         ["mass_alignment", mass_alignment],
         ["max_mline", max_mline],
         ["seed", seed],
-    ], headers=['Argument', 'Value'], missingval='[default]'))
+    ], headers=['Argument', 'Value'], missingval='[default]')
+
+    print(tabulated_args)
 
     # Set the random seed:
     if seed:
@@ -352,13 +334,14 @@ def mokafilter(sqts: List[IO[str]],
                  f'Unfiltered	{unfiltered_proteins}  {unfiltered_peptides}  {unfiltered_psms}\n',
                  f'Filtered	{decoy_protein_groups + target_protein_groups}  {target_peptides + decoy_peptides}  {target_spectra + decoy_spectra}\n',
                  f'Forward	{target_protein_groups}  {target_peptides}  {target_spectra}\n',
-                 f'Redundant Forward matches	{target_proteins - target_protein_groups}  {total_target_peptides - target_peptides}  {0}\n',
+                 f'Redundant Forward matches	{target_proteins}  {total_target_peptides}  {target_spectra}\n',
                  f'Decoy matches	{decoy_protein_groups}  {decoy_peptides}  {decoy_spectra}\n',
-                 f'Redundant Decoy matches	{decoy_proteins - decoy_protein_groups}  {total_decoy_peptides - decoy_peptides}  {0}\n',
+                 f'Redundant Decoy matches	{decoy_proteins}  {total_decoy_peptides}  {decoy_spectra}\n',
                  f'Forward FDR	{protein_fdr}	{peptide_fdr}	{spectra_fdr}\n']
 
     if timscore is True:
-        h_lines = ['DTASelect v2.1.12\n',
+        h_lines = ['DTASelect v2.1.13\n',
+                   tabulated_args,
                    '\n',
                    'Locus	Sequence Count	Spectrum Count	Sequence Coverage	Length	MolWt	pI	'
                    'Validation Status	NSAF	EMPAI	Descriptive Name	HRedundancy	LRedundancy	MRedundancy\n',
@@ -373,6 +356,7 @@ def mokafilter(sqts: List[IO[str]],
             end_lines=end_lines)
     else:
         h_lines = ['DTASelect v2.1.12\n',
+                   tabulated_args,
                    '\n',
                    'Locus	Sequence Count	Spectrum Count	Sequence Coverage	Length	MolWt	pI	Validation Status	'
                    'NSAF	EMPAI	Descriptive Name	HRedundancy	LRedundancy	MRedundancy\n',
