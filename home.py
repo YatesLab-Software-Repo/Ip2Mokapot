@@ -16,14 +16,14 @@ search_xml = st.file_uploader(label='search_xml', type='.xml', help=SEARCH_XML_D
 dta_params = st.file_uploader(label='dta_params', type='.params', help=DTASELECT_PARAMS_DESCRIPTION)
 
 with st.expander('Advanced'):
-    protein_fdr, peptide_fdr, psm_fdr, min_peptides = None, None, None, None
+    protein_fdr, peptide_fdr, psm_fdr, min_peptides = 0.01, 0.01, 0.01, 1
     if not dta_params:
         protein_fdr = st.number_input(label='protein_fdr', value=0.01, help = PROTEIN_FDR_DESCRIPTION)
         peptide_fdr = st.number_input(label='peptide_fdr', value=0.01, help=PEPTIDE_FDR_DESCRIPTION)
         psm_fdr = st.number_input(label='psm_fdr', value=0.01, help=PSM_FDR_DESCRIPTION)
         min_peptides = st.number_input(label='min_peptides', value=1, help=MIN_PEPTIDES_DESCRIPTION)
 
-    missed_cleavage, semi, enzyme_regex, enzyme_term, min_length = None, None, None, None, None
+    missed_cleavage, semi, enzyme_regex, enzyme_term, min_length = 1, False, '[KR]', True, 6
     if not search_xml:
         missed_cleavage = st.number_input(label='missed_cleavage', value=1, help=MISSED_CLEAVAGE_DESCRIPTION)
         semi = st.checkbox(label='semi', value=False, help=SEMI_DESCRIPTION)
@@ -48,7 +48,11 @@ with st.expander('Advanced'):
     if use_random_seed is True:
         random_seed = st.number_input(label='random_seed', value=42)
 
-if st.button('start') and sqts and fastas:
+if st.button('start'):
+
+    if not sqts or not fastas:
+        st.warning('Please upload the required file types: SQT & FASTA')
+        st.stop()
 
     sqt_ios = [StringIO(sqt.getvalue().decode("utf-8")) for sqt in sqts]
     fasta_ios = [StringIO(fasta.getvalue().decode("utf-8")) for fasta in fastas]
@@ -68,6 +72,3 @@ if st.button('start') and sqts and fastas:
                                     max_mline, random_seed, dta_params_io)
 
     st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content, file_name='DTASelect-filter.txt')
-
-else:
-    st.warning('Please upload the required file types: SQT & FASTA')
