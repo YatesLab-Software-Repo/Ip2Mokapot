@@ -1,6 +1,6 @@
 from io import StringIO
 import streamlit as st
-from ip2mokapot.sqt_to_filter import mokafilter
+from ip2mokapot.filter import mokafilter
 from ip2mokapot.config import *
 
 st.title('MokaFilter 	:coffee:')
@@ -79,9 +79,7 @@ if st.button('Run'):
 
     dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
                                     search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length,
-                                    semi,
-                                    decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore,
-                                    mass_alignment,
-                                    max_mline, random_seed, dta_params_io)
+                                    semi, decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore,
+                                    mass_alignment, max_mline, random_seed, dta_params_io)
 
-    st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content, file_name='DTASelect-filter.txt')
+    st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content.read(), file_name='DTASelect-filter.txt')

@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import shlex
 from io import StringIO, TextIOWrapper
+from typing import IO
 
 import numpy as np
 from serenipy import sqt, dtaselectfilter
@@ -23,7 +24,7 @@ def parse_dta_args(arg_string):
             else:
                 arg_dict[args[i]] = True
     return arg_dict
-def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.DataFrame:
+def convert_to_csv(sqt_content: IO[str], filename=None) -> pd.DataFrame:
     """
     Convert SQT filee into a pandas df
     :param sqt_content: contents of the sqt file
@@ -81,6 +82,7 @@ def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.D
             data['m_line'].append(i)
 
     df = pd.DataFrame(data)
+    df.index = f'{filename}' + df.index.astype(str)
     df.index.name = 'id'
     if filename:
         df['file'] = filename
@@ -93,11 +95,9 @@ def align_mass(df):
     align_index = df['xcorr'] >= x_corr_perc
     align_rts = rts[align_index]
     align_mass_ppm_diff = (1_000_000*(df['experimental_mass'] - df['calculated_mass'])/df['calculated_mass'])[align_index]
-    print(align_mass_ppm_diff)
     alignment_func = np.poly1d(np.polyfit(align_rts, align_mass_ppm_diff, 1))
     shifts = alignment_func(rts)
     df['experimental_mass'] = df['experimental_mass'] - df['experimental_mass'] * shifts / 1_000_000
-    #df['ppm'] = (df['experimental_mass'] - df['calculated_mass']) / df['calculated_mass'] * 1_000_000
 
 def align_mobility(df):
     scaler = MinMaxScaler()
@@ -144,7 +144,6 @@ def convert_to_moka(sqt_df: pd.DataFrame):
     perc_df['matched_ion_fraction'] = sqt_df['matched_ions'].divide(sqt_df['expected_ions'])
 
     perc_df['sp'] = sqt_df['sp']
-    perc_df['sequence_length'] = [len(get_unmodified_peptide(peptide)) for peptide in sqt_df['sequence']]
 
     perc_df['xcorr_rank'] = sqt_df['xcorr_rank']
     perc_df['sp_rank'] = sqt_df['sp_rank']
@@ -153,6 +152,8 @@ def convert_to_moka(sqt_df: pd.DataFrame):
     perc_df = pd.concat([perc_df, m_lines], axis=1)
 
     perc_df['Peptide'] = sqt_df['sequence']
+    perc_df['sequence_length'] = perc_df['Peptide'].apply(lambda x: len(get_unmodified_peptide(x)))
+
     perc_df['Proteins'] = sqt_df['locuses']
     perc_df.reset_index(inplace=True)
 

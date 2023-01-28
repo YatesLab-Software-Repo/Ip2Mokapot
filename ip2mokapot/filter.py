@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 import argparse
+from io import StringIO
 from pathlib import Path
 from collections import Counter
 from typing import List, Union
@@ -17,6 +16,7 @@ from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, a
 from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein, strip_modifications
 from .config import *
 
+
 # TODO: Make option to save intermediate mokapot files somewhere
 # TODO: Add option to train hyper params
 # TODO: Enable grouping when multiple search.xml files are uploaded
@@ -30,8 +30,8 @@ def parse_args() -> argparse.Namespace:
                                       formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     _parser.add_argument('--sqts', required=True, nargs='+', type=str, help=SQTS_DESCRIPTION)
     _parser.add_argument('--fastas', required=True, nargs='+', type=str, help=FASTAS_DESCRIPTION)
+    _parser.add_argument('--search_xmls', required=False, nargs='+', type=str, help=SEARCH_XML_DESCRIPTION)
     _parser.add_argument('--out', required=True, type=str, help=OUT_DESCRIPTION)
-    _parser.add_argument('--search_xml', required=False, type=str, help=SEARCH_XML_DESCRIPTION)
     _parser.add_argument('--dta_params', required=False, type=str, help=DTASELECT_PARAMS_DESCRIPTION)
 
     _parser.add_argument('--protein_fdr', required=False, type=float, default=0.01, help=PROTEIN_FDR_DESCRIPTION)
@@ -71,17 +71,17 @@ def run():
     sqts = [Path(sqt).open() for sqt in args.sqts]
     sqt_stems = [str(Path(sqt).stem) for sqt in args.sqts]
     fastas = [Path(fasta).open() for fasta in args.fastas]
-    search_xml = Path(args.search_xml).open()
+    search_xmls = [Path(search_xml).open() for search_xml in args.search_xmls]
     dta_params = Path(args.dta_params).open()
 
     dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
-                                    search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
+                                    search_xmls, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
                                     args.min_length, args.max_length, args.semi, args.decoy_prefix, args.xgboost,
                                     args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter, args.timscore,
                                     args.mass_alignment, args.max_mline, args.seed, dta_params)
 
     with open(Path(args.out), 'w') as file:
-        file.write(dta_filter_content)
+        file.write(dta_filter_content.read())
 
 
 def mokafilter(sqts: List[IO[str]],
@@ -90,7 +90,7 @@ def mokafilter(sqts: List[IO[str]],
                peptide_fdr: float,
                psm_fdr: float,
                min_peptides: int,
-               search_xml: Union[IO[str], None],
+               search_xmls: Union[List[IO[str]], None],
                enzyme_regex: str,
                enzyme_term: bool,
                missed_cleavage: int,
@@ -107,14 +107,15 @@ def mokafilter(sqts: List[IO[str]],
                mass_alignment: bool,
                max_mline: int,
                seed: Union[int, None],
-               dta_params: Union[IO[str], None]) -> str:
+               dta_params: Union[IO[str], None]) -> IO[str]:
     """
     What a mess of code...
 
     Entrypoint for both CLI tool and streamlit app, as such all files but be of IO type (StringIO or TextIO)
-    :return: str - the string contents of the output DTASelect-filter.txt file
+    :return: IO[str] - the contents of the output DTASelect-filter.txt file
     """
 
+    # If a DTASelect.param file is provided, then parse the contents
     if dta_params:
         dta_args = parse_dta_args(dta_params.read().rstrip())
         fp_fdr = float(dta_args.get('--fp', 1.0))
@@ -123,7 +124,14 @@ def mokafilter(sqts: List[IO[str]],
         min_peptides = int(dta_args.get('-p', min_peptides))
         protein_fdr, peptide_fdr, psm_fdr = pfp_fdr, sfp_fdr, fp_fdr
 
-    if search_xml:
+    # Set the random seed if it is provided
+    if seed:
+        np.random.seed(seed)
+
+    psms_list = []
+    sqt_dfs = []
+    for search_xml, fasta, sqt, sqt_stem in zip(search_xmls, fastas, sqts, sqt_stems):
+
         xml_dict = xml_to_dict(search_xml)
         missed_cleavage = int(xml_dict['enzyme_info']['max_num_internal_mis_cleavage'])
         semi = int(xml_dict['enzyme_info']['specificity']) != 2
@@ -131,94 +139,102 @@ def mokafilter(sqts: List[IO[str]],
         enzyme_term = xml_dict['enzyme_info']['type'] == 'true'
         min_length = int(xml_dict['peptide_length_limits']['minimum'])
 
-    tabulated_args = tabulate([
-        ["sqts", sqts],
-        ["fastas", fastas],
-        ['protein_fdr', protein_fdr],
-        ['peptide_fdr', peptide_fdr],
-        ["psm_fdr", psm_fdr],
-        ["min_peptides", min_peptides],
-        ["search_xml", search_xml],
-        ["enzyme_regex", enzyme_regex],
-        ["enzyme_term", enzyme_term],
-        ["missed_cleavage", missed_cleavage],
-        ["min_length", min_length],
-        ["max_length", max_length],
-        ["semi", semi],
-        ["decoy_prefix", decoy_prefix],
-        ["xgboost", xgboost],
-        ['test_fdr', test_fdr],
-        ["folds", folds],
-        ["workers", workers],
-        ["sqt_stems", sqt_stems],
-        ["max_iter", max_iter],
-        ["timscore", timscore],
-        ["mass_alignment", mass_alignment],
-        ["max_mline", max_mline],
-        ["seed", seed],
-    ], headers=['Argument', 'Value'], missingval='[default]')
+        # Display all arguments
+        print(f'Running MokaPot for {sqt_stem}')
+        tabulated_args = tabulate([
+            ["sqt", sqt],
+            ["fasta", fasta],
+            ['protein_fdr', protein_fdr],
+            ['peptide_fdr', peptide_fdr],
+            ["psm_fdr", psm_fdr],
+            ["min_peptides", min_peptides],
+            ["search_xml", search_xml],
+            ["enzyme_regex", enzyme_regex],
+            ["enzyme_term", enzyme_term],
+            ["missed_cleavage", missed_cleavage],
+            ["min_length", min_length],
+            ["max_length", max_length],
+            ["semi", semi],
+            ["decoy_prefix", decoy_prefix],
+            ["xgboost", xgboost],
+            ['test_fdr', test_fdr],
+            ["folds", folds],
+            ["workers", workers],
+            ["sqt_stems", sqt_stems],
+            ["max_iter", max_iter],
+            ["timscore", timscore],
+            ["mass_alignment", mass_alignment],
+            ["max_mline", max_mline],
+            ["seed", seed],
+        ], headers=['Argument', 'Value'], missingval='[default]')
+        print(tabulated_args)
 
-    print(tabulated_args)
+        sqt_df = convert_to_csv(sqt, sqt_stem)
+        if mass_alignment is True:  # Align mass and recalculate ppm
+            align_mass(sqt_df)
 
-    # Set the random seed:
-    if seed:
-        np.random.seed(seed)
+        sqt_df = sqt_df[sqt_df['xcorr'] > 0.0]
+        sqt_df = sqt_df[sqt_df['m_line'] < max_mline]
+        sqt_df.reset_index(inplace=True)
+        sqt_dfs.append(sqt_df)
+        pin_df = convert_to_moka(sqt_df)
 
-    sqt_dfs = [convert_to_csv(sqt, sqt_stem) for sqt, sqt_stem in zip(sqts, sqt_stems)]
-    if mass_alignment is True:
-        _ = [align_mass(sqt_df) for sqt_df in sqt_dfs]
-    sqt_df = pd.concat(sqt_dfs, ignore_index=True)
-    sqt_df = sqt_df[sqt_df['xcorr'] > 0.0]
-    sqt_df = sqt_df[sqt_df['m_line'] < max_mline]
+        # Add in enzyme cleavage flag (sort of like trystat in DTASelect)
+        if enzyme_term is True:
+            pin_df['tryp'] = [
+                int(peptide[0] in enzyme_regex[1:-1]) + int(strip_modifications(peptide[:-2])[-1] in enzyme_regex[1:-1]) for
+                peptide in
+                pin_df['Peptide']]
+        else:
+            pin_df['tryp'] = [int(peptide[2] in enzyme_regex[1:-1]) + int(peptide[-1] in enzyme_regex[1:-1]) for peptide in
+                              pin_df['Peptide']]
 
-    fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas)]
-    fasta_dict = {e[0]: {'sequence': e[1], 'description': e[2]} for e in fasta_elems}
+        # Include timsscore as a feature
+        if timscore:
+            pin_df['tims_score'] = sqt_df['tims_score'].fillna(value=0)
 
-    pin_df = convert_to_moka(sqt_df)
+        psms = mokapot.read_pin(pin_files=pin_df)
 
-    if enzyme_term is True:
-        pin_df['tryp'] = [int(peptide[0] in enzyme_regex[1:-1]) + int(strip_modifications(peptide[:-2])[-1] in enzyme_regex[1:-1]) for peptide in
-                          sqt_df['sequence']]
-    else:
-        pin_df['tryp'] = [int(peptide[2] in enzyme_regex[1:-1]) + int(peptide[-1] in enzyme_regex[1:-1]) for peptide in
-                          sqt_df['sequence']]
+        fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files([fasta])]
+        fasta_dict = {e[0]: {'sequence': e[1], 'description': e[2]} for e in fasta_elems}
 
-    if any(sqt_df['tims_score']) and timscore:
-        pin_df['tims_score'] = sqt_df['tims_score']
-        pin_df['tims_score'] = pin_df['tims_score'].fillna(value=0)
+        # Slightly modified version of read_fasta which works with parsed fasta elements [(locus, sequence, description)]
+        proteins = read_fasta(fasta=fasta_elems,
+                              enzyme=enzyme_regex,
+                              missed_cleavages=missed_cleavage,
+                              min_length=min_length,
+                              max_length=max_length,
+                              semi=semi,
+                              decoy_prefix=decoy_prefix,
+                              enzyme_term=enzyme_term)
+        psms.add_proteins(proteins)
+        psms_list.append(psms)
 
-    psms = mokapot.read_pin(pin_files=pin_df)
-
-    # Slightly modified version of read_fasta which doesn't require opening files
-    proteins = read_fasta(fasta=fasta_elems,
-                          enzyme=enzyme_regex,
-                          missed_cleavages=missed_cleavage,
-                          min_length=min_length,
-                          max_length=max_length,
-                          semi=semi,
-                          decoy_prefix=decoy_prefix,
-                          enzyme_term=enzyme_term)
-    psms.add_proteins(proteins)
+    sqt_df = pd.concat(sqt_dfs)
 
     if xgboost:
         estimator = mokapot.Model(XGBClassifier(objective='binary:logistic', nthread=4, seed=42), max_iter=max_iter)
     else:
         estimator = mokapot.PercolatorModel(max_iter=max_iter)
 
-    results, models = mokapot.brew(psms=psms,
+    results, models = mokapot.brew(psms=psms_list,
                                    model=estimator,
                                    test_fdr=test_fdr,
                                    folds=folds,
                                    max_workers=workers)
 
     # results.to_txt(dest_dir=str(sqt_path.parent), file_root=str(sqt_path.stem))
-    print(models)
+    if type(results) != List:
+        results = [results]
 
-    # separate protein, peptide, and psm dataframes
-    target_psm_results, target_peptide_results, target_protein_results = results.confidence_estimates['psms'], \
-        results.confidence_estimates['peptides'], results.confidence_estimates['proteins']
-    decoy_psm_results, decoy_peptide_results, decoy_protein_results = results.decoy_confidence_estimates['psms'], \
-        results.decoy_confidence_estimates['peptides'], results.decoy_confidence_estimates['proteins']
+    target_psm_results = pd.concat([result.confidence_estimates['psms'] for result in results])
+    print(target_psm_results)
+    target_peptide_results = pd.concat([result.confidence_estimates['peptides'] for result in results])
+    target_protein_results = pd.concat([result.confidence_estimates['proteins'] for result in results])
+
+    decoy_psm_results = pd.concat([result.decoy_confidence_estimates['psms'] for result in results])
+    decoy_peptide_results = pd.concat([result.decoy_confidence_estimates['peptides'] for result in results])
+    decoy_protein_results = pd.concat([result.decoy_confidence_estimates['proteins'] for result in results])
 
     # Filter each dataframe according the specified level FDR value
     filtered_target_psm_results = target_psm_results[target_psm_results['mokapot q-value'] <= psm_fdr]
@@ -280,19 +296,20 @@ def mokafilter(sqts: List[IO[str]],
         for peptide_line in result.peptide_lines:
             peptide_line.redundancy = peptide_counts[peptide_line.sequence]
 
-
     # Finalize DTASelect-filter.txt lines
     unfiltered_proteins = len(target_protein_results) + len(decoy_protein_results)
     unfiltered_peptides = len(target_peptide_results) + len(decoy_peptide_results)
     unfiltered_psms = len(target_psm_results) + len(decoy_psm_results)
 
+    # Parse content for filling out end line contents (Does nto follow the same rules as original DTASelect-filter.txt)
     target_results = [result for result in filter_results if
                       any(['Reverse_' not in protein_line.locus_name for protein_line in result.protein_lines])]
     target_protein_groups = len([result.protein_lines[0].locus_name for result in target_results])
     target_proteins = sum([len(result.protein_lines) for result in target_results])
 
-    target_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in target_results for peptide_line in
-         result.peptide_lines]
+    target_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in target_results for
+                                   peptide_line in
+                                   result.peptide_lines]
     target_peptides = len(set(target_peptide_charge_pairs))
     total_target_peptides = len(target_peptide_charge_pairs)
     target_spectra = sum([result.protein_lines[0].spectrum_count for result in target_results])
@@ -302,8 +319,9 @@ def mokafilter(sqts: List[IO[str]],
     decoy_protein_groups = len([result.protein_lines[0].locus_name for result in decoy_results])
     decoy_proteins = sum([len(result.protein_lines) for result in decoy_results])
 
-    decoy_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in decoy_results for peptide_line in
-         result.peptide_lines]
+    decoy_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in decoy_results for
+                                  peptide_line in
+                                  result.peptide_lines]
     decoy_peptides = len(set(decoy_peptide_charge_pairs))
     total_decoy_peptides = len(decoy_peptide_charge_pairs)
     decoy_spectra = sum([result.protein_lines[0].spectrum_count for result in decoy_results])
@@ -361,7 +379,7 @@ def mokafilter(sqts: List[IO[str]],
             dta_filter_results=filter_results,
             end_lines=end_lines)
 
-    return dta_filter_content
+    return StringIO(dta_filter_content)
 
 
 if __name__ == '__main__':
