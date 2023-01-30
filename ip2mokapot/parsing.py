@@ -5,6 +5,7 @@ import shlex
 from io import StringIO, TextIOWrapper
 
 import numpy as np
+from matplotlib import pyplot as plt
 from serenipy import sqt, dtaselectfilter
 import pandas as pd
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
@@ -17,12 +18,14 @@ def parse_dta_args(arg_string):
     args = shlex.split(arg_string)
     arg_dict = {}
     for i in range(len(args)):
-        if args[i].startswith("--"):
-            if i + 1 < len(args) and not args[i + 1].startswith("--"):
+        if args[i].startswith("-"):
+            if i + 1 < len(args) and not args[i + 1].startswith("-"):
                 arg_dict[args[i]] = args[i + 1]
             else:
                 arg_dict[args[i]] = True
     return arg_dict
+
+
 def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.DataFrame:
     """
     Convert SQT filee into a pandas df
@@ -86,18 +89,36 @@ def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.D
         df['file'] = filename
     return df
 
-def align_mass(df):
+
+def plot_alignment(rts, expt_masses, shifts, calc_masses):
+    fig, ax = plt.subplots()
+    ax.scatter(rts, (expt_masses - calc_masses) / calc_masses * 1_000_000, s=0.1, label='Raw')
+    ax.scatter(rts, (expt_masses - shifts - calc_masses) / calc_masses * 1_000_000, s=0.1, label='Aligned')
+
+    ppm_shifts = shifts/calc_masses*1_000_000
+    rts, ppm_shifts = zip(*sorted(zip(rts, ppm_shifts), key=lambda x: x[0]))
+    plt.plot(rts, shifts/calc_masses*1_000_000, c='r', label='lobf')
+    plt.title('Mass Alignment')
+    plt.xlabel('Normalized Retention Time')
+    plt.ylabel('PPM')
+    ax.legend()
+    return fig
+
+
+def align_mass(df, mass_alignment_dim, mass_alignment_percentile):
     scaler = MinMaxScaler()
     rts = scaler.fit_transform(df['low_scan'].values.reshape(-1, 1)).reshape(-1)
-    x_corr_perc = np.percentile(df['xcorr'], 95)
+    x_corr_perc = np.percentile(df['xcorr'], mass_alignment_percentile)
     align_index = df['xcorr'] >= x_corr_perc
     align_rts = rts[align_index]
-    align_mass_ppm_diff = (1_000_000*(df['experimental_mass'] - df['calculated_mass'])/df['calculated_mass'])[align_index]
-    print(align_mass_ppm_diff)
-    alignment_func = np.poly1d(np.polyfit(align_rts, align_mass_ppm_diff, 1))
-    shifts = alignment_func(rts)
-    df['experimental_mass'] = df['experimental_mass'] - df['experimental_mass'] * shifts / 1_000_000
-    #df['ppm'] = (df['experimental_mass'] - df['calculated_mass']) / df['calculated_mass'] * 1_000_000
+    align_mass_ppm_diff = (1_000_000 * (df['experimental_mass'] - df['calculated_mass']) / df['calculated_mass'])[
+        align_index]
+    alignment_func = np.poly1d(np.polyfit(align_rts, align_mass_ppm_diff, mass_alignment_dim))
+    shifts = alignment_func(rts) * df['experimental_mass'] / 1_000_000
+    fig = plot_alignment(rts[align_index], df['experimental_mass'][align_index], shifts[align_index], df['calculated_mass'][align_index])
+    df['experimental_mass'] = df['experimental_mass'] - shifts
+    return fig
+
 
 def align_mobility(df):
     scaler = MinMaxScaler()
@@ -109,6 +130,7 @@ def align_mobility(df):
     alignment_func = np.poly1d(np.polyfit(align_rts, align_mobility_diff, 1))
     shifts = alignment_func(rts)
     df['experimental_ook0'] = df['experimental_ook0'] - shifts
+
 
 def convert_to_moka(sqt_df: pd.DataFrame):
     """
@@ -125,10 +147,8 @@ def convert_to_moka(sqt_df: pd.DataFrame):
     perc_df.loc[perc_df['Label'] == 1, 'Label'] = 1
 
     perc_df['ScanNr'] = sqt_df['low_scan']
-    perc_df['ExpMass'] = sqt_df['experimental_mass']
-    perc_df['CalcMass'] = sqt_df['calculated_mass']
-
-    # perc_df['group'] = df['file']
+    perc_df['ExpMass'] = sqt_df['experimental_mass'].replace(0, np.nan)
+    perc_df['CalcMass'] = sqt_df['calculated_mass'].replace(0, np.nan)
 
     perc_df['abs_ppm'] = \
         abs((sqt_df['experimental_mass'] - sqt_df['calculated_mass']).divide(sqt_df['calculated_mass']) * 1_000_000)
@@ -142,6 +162,12 @@ def convert_to_moka(sqt_df: pd.DataFrame):
     perc_df['matched_ions'] = sqt_df['matched_ions']
     perc_df['expected_ions'] = sqt_df['expected_ions']
     perc_df['matched_ion_fraction'] = sqt_df['matched_ions'].divide(sqt_df['expected_ions'])
+    perc_df['matched_ion_fraction'].replace([np.inf, -np.inf], np.nan, inplace=True)
+
+    if perc_df['matched_ion_fraction'].isnull().values.any():
+        print(
+            f"Detected {perc_df['matched_ion_fraction'].isnull().sum()} nan values in column: matched_ion_fraction")
+        perc_df['matched_ion_fraction'] = perc_df['matched_ion_fraction'].fillna(0)
 
     perc_df['sp'] = sqt_df['sp']
     perc_df['sequence_length'] = [len(get_unmodified_peptide(peptide)) for peptide in sqt_df['sequence']]

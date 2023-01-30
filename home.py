@@ -1,6 +1,6 @@
 from io import StringIO
 import streamlit as st
-from ip2mokapot.sqt_to_filter import mokafilter
+from ip2mokapot.filter import mokafilter
 from ip2mokapot.config import *
 
 st.title('MokaFilter 	:coffee:')
@@ -50,7 +50,12 @@ with st.expander('Advanced'):
 
     timscore = st.checkbox(label='timscore', value=False, help=TIMSCORE_DESCRIPTION)
     mass_alignment = st.checkbox(label='mass_alignment', value=True, help=MASS_ALIGNMENT_DESCRIPTION)
+    mass_alignment_dim = st.number_input(label='mass_alignment_dim', value=1, help=MASS_ALIGNMENT_DIM_DESCRIPTION)
+    mass_alignment_percentile = st.number_input(label='mass_alignment_percentile', value=95, help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
+
     max_mline = st.number_input(label='max_mline', value=5, help=MAX_MLINE_DESCRIPTION)
+    xcorr_filter = st.number_input(label='xcorr_filter', value=0.0, help=XCORR_FILTER_DESCRIPTION)
+
     use_random_seed = st.checkbox(label='random_seed', value=False, help=MAX_SEED_DESCRIPTION)
 
     random_seed = None
@@ -77,11 +82,16 @@ if st.button('Run'):
     elif dta_params_txt:
         dta_params_io = StringIO(dta_params_txt)
 
-    dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
+    alignment_figs, dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
                                     search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length,
                                     semi,
                                     decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore,
                                     mass_alignment,
-                                    max_mline, random_seed, dta_params_io)
+                                    max_mline, random_seed, dta_params_io, xcorr_filter, mass_alignment_dim, mass_alignment_percentile)
 
-    st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content, file_name='DTASelect-filter.txt')
+    if alignment_figs:
+        for fig, stem in zip(alignment_figs, sqt_stems):
+            st.caption(stem)
+            st.pyplot(fig)
+
+    st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content.read(), file_name='DTASelect-filter.txt')

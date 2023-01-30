@@ -24,16 +24,26 @@ DECOY_PREFIX_DESCRIPTION = 'The decoy prefix found int FASTA and SQT files. For 
 
 # Mokapot arguments
 XGBOOST_DESCRIPTION = 'Use Xbgoost as the model for mokapots semi-supervised training loop. If false mokapot will use its Percolator like model.'
-TEST_FDR_DESCRIPTION = 'The test FDR to use during semi-supervized training loop'
-FOLDS_DESCRIPTION = 'number of K-Folds to preform'
-WORKERS_DESCRIPTION = 'The number of workers (threads) to use for semi-supervized training loop'
+TEST_FDR_DESCRIPTION = """The false-discovery rate threshold at which to evaluate
+        the learned models."""
+FOLDS_DESCRIPTION = """The number of cross-validation folds to use. PSMs originating
+        from the same mass spectrum are always in the same fold."""
+WORKERS_DESCRIPTION = """The number of processes to use for model training. More workers
+        will require more memory, but will typically decrease the total
+        run time. An integer exceeding the number of folds will have
+        no additional effect. Note that logging messages will be garbled
+        if more than one worker is enabled."""
 MAX_ITER_DESCRIPTION = 'The number of iterations to preform during the semi-supervized training loop'
 TIMSCORE_DESCRIPTION = 'A flag to denote PaSER SQT files. Setting this to True will 1) use timscores as a feature in mokapot, and 2) output a PaSER compatible DTASelect-filter.txt file'
 MAX_SEED_DESCRIPTION = 'The random seed to use, for reproducibility.'
 
 # IP2Mokapot arguments
-MASS_ALIGNMENT_DESCRIPTION = 'Align masses within each sqt file, and recalculate ppm. Alignment uses a 1D polyfit fitted to the mass ppm drift vs retention time for peptides >= 95th percentile xcorr'
+MASS_ALIGNMENT_DESCRIPTION = 'Align masses within each sqt file, and recalculate ppm. Alignment uses a 1D polyfit fitted to the mass ppm drift vs retention time'
+MASS_ALIGNMENT_DIM_DESCRIPTION = 'The number of dimensions to use in the polyfit alignment function. 1 in linear, 2 is quadratic...'
+MASS_ALIGNMENT_PERCENTILE_DESCRIPTION = 'Represents the xcorr percentile for which to fit the mass alignment function.'
+
 MAX_MLINE_DESCRIPTION = 'The maximum number of m lines to use for input to mokapot.'
+XCORR_FILTER_DESCRIPTION = 'The xcorr value for which to filter PSMs, for input into the semi-supervized training loop. only PSMs > xcorr_filter will be included.'
 
 # Help msg
 HELP_DESCRIPTION = """

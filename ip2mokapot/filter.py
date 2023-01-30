@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from io import StringIO
 from pathlib import Path
 from collections import Counter
 from typing import List, Union
@@ -17,6 +18,7 @@ from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, a
 from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein, strip_modifications
 from .config import *
 
+
 # TODO: Make option to save intermediate mokapot files somewhere
 # TODO: Add option to train hyper params
 # TODO: Enable grouping when multiple search.xml files are uploaded
@@ -31,8 +33,8 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--sqts', required=True, nargs='+', type=str, help=SQTS_DESCRIPTION)
     _parser.add_argument('--fastas', required=True, nargs='+', type=str, help=FASTAS_DESCRIPTION)
     _parser.add_argument('--out', required=True, type=str, help=OUT_DESCRIPTION)
-    _parser.add_argument('--search_xml', required=False, type=str, help=SEARCH_XML_DESCRIPTION)
-    _parser.add_argument('--dta_params', required=False, type=str, help=DTASELECT_PARAMS_DESCRIPTION)
+    _parser.add_argument('--search_xml', required=False, type=str, default=None, help=SEARCH_XML_DESCRIPTION)
+    _parser.add_argument('--dta_params', required=False, type=str, default=None, help=DTASELECT_PARAMS_DESCRIPTION)
 
     _parser.add_argument('--protein_fdr', required=False, type=float, default=0.01, help=PROTEIN_FDR_DESCRIPTION)
     _parser.add_argument('--peptide_fdr', required=False, type=float, default=0.01, help=PEPTIDE_FDR_DESCRIPTION)
@@ -55,8 +57,12 @@ def parse_args() -> argparse.Namespace:
 
     _parser.add_argument('--timscore', required=False, default=False, type=bool, help=TIMSCORE_DESCRIPTION)
     _parser.add_argument('--mass_alignment', required=False, default=True, type=bool, help=MASS_ALIGNMENT_DESCRIPTION)
+    _parser.add_argument('--mass_alignment_dim', required=False, default=1, type=int, help=MASS_ALIGNMENT_DIM_DESCRIPTION)
+    _parser.add_argument('--mass_alignment_percentile', required=False, default=95, type=int, help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
+
     _parser.add_argument('--max_mline', required=False, default=5, type=int, help=MAX_MLINE_DESCRIPTION)
     _parser.add_argument('--seed', required=False, default=None, type=int, help=MAX_SEED_DESCRIPTION)
+    _parser.add_argument('--xcorr_filter', required=False, default=0.0, type=float, help=XCORR_FILTER_DESCRIPTION)
 
     return _parser.parse_args()
 
@@ -71,19 +77,43 @@ def run():
     sqts = [Path(sqt).open() for sqt in args.sqts]
     sqt_stems = [str(Path(sqt).stem) for sqt in args.sqts]
     fastas = [Path(fasta).open() for fasta in args.fastas]
-    search_xml = Path(args.search_xml).open()
-    dta_params = Path(args.dta_params).open()
 
-    dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
+    search_xml = None
+    if args.search_xml:
+        search_xml = Path(args.search_xml).open()
+
+    dta_params = None
+    if args.dta_params:
+        dta_params = Path(args.dta_params).open()
+
+    alignment_figs, dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
                                     search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
                                     args.min_length, args.max_length, args.semi, args.decoy_prefix, args.xgboost,
                                     args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter, args.timscore,
-                                    args.mass_alignment, args.max_mline, args.seed, dta_params)
+                                    args.mass_alignment, args.max_mline, args.seed, dta_params, args.xcorr_filter,
+                                                    args.mass_alignment_dim, args.mass_alignment_percentile)
 
     with open(Path(args.out), 'w') as file:
-        file.write(dta_filter_content)
+        file.write(dta_filter_content.read())
 
+    if alignment_figs:
+        for fig, stem in zip(alignment_figs, sqt_stems):
+            png_name = f'{stem}_mass_alignment.png'
+            print(f'Saving alignment plot to {png_name}')
+            fig.savefig(png_name)
 
+    # Close Files
+    for fasta in fastas:
+        fasta.close()
+
+    for sqt in sqts:
+        sqt.close()
+
+    if dta_params:
+        dta_params.close()
+
+    if search_xml:
+        search_xml.close()
 def mokafilter(sqts: List[IO[str]],
                fastas: List[IO[str]],
                protein_fdr: float,
@@ -107,7 +137,10 @@ def mokafilter(sqts: List[IO[str]],
                mass_alignment: bool,
                max_mline: int,
                seed: Union[int, None],
-               dta_params: Union[IO[str], None]) -> str:
+               dta_params: Union[IO[str], None],
+               xcorr_filter: float,
+               mass_alignment_dim: int,
+               mass_alignment_percentile: float) -> (List, IO[str]):
     """
     What a mess of code...
 
@@ -121,24 +154,28 @@ def mokafilter(sqts: List[IO[str]],
         pfp_fdr = float(dta_args.get('--pfp', 1.0))
         sfp_fdr = float(dta_args.get('--sfp', 1.0))
         min_peptides = int(dta_args.get('-p', min_peptides))
+        timscore = dta_args.get('--timscore', False)
         protein_fdr, peptide_fdr, psm_fdr = pfp_fdr, sfp_fdr, fp_fdr
 
     if search_xml:
         xml_dict = xml_to_dict(search_xml)
         missed_cleavage = int(xml_dict['enzyme_info']['max_num_internal_mis_cleavage'])
+        if missed_cleavage == -1:
+            missed_cleavage = 5
         semi = int(xml_dict['enzyme_info']['specificity']) != 2
         enzyme_regex = f"[{''.join(xml_dict['enzyme_info']['residues']['residue'])}]"
         enzyme_term = xml_dict['enzyme_info']['type'] == 'true'
         min_length = int(xml_dict['peptide_length_limits']['minimum'])
 
     tabulated_args = tabulate([
-        ["sqts", sqts],
-        ["fastas", fastas],
+        ["sqt files", len(sqts)],
+        ["fasta files", len(fastas)],
+        ["search_xml", True if search_xml else False],
+        ['dta_params', True if dta_params else False],
         ['protein_fdr', protein_fdr],
         ['peptide_fdr', peptide_fdr],
         ["psm_fdr", psm_fdr],
         ["min_peptides", min_peptides],
-        ["search_xml", search_xml],
         ["enzyme_regex", enzyme_regex],
         ["enzyme_term", enzyme_term],
         ["missed_cleavage", missed_cleavage],
@@ -150,25 +187,33 @@ def mokafilter(sqts: List[IO[str]],
         ['test_fdr', test_fdr],
         ["folds", folds],
         ["workers", workers],
-        ["sqt_stems", sqt_stems],
         ["max_iter", max_iter],
         ["timscore", timscore],
         ["mass_alignment", mass_alignment],
+        ['mass_alignment_dim', mass_alignment_dim],
+        ['mass_alignment_percentile', mass_alignment_percentile],
         ["max_mline", max_mline],
         ["seed", seed],
-    ], headers=['Argument', 'Value'], missingval='[default]')
+        ['xcorr_filter', xcorr_filter],
+    ], headers=['Argument', 'Value'], missingval='None')
 
     print(tabulated_args)
 
     # Set the random seed:
     if seed:
+        print(f'Setting random seed: {seed}')
         np.random.seed(seed)
 
     sqt_dfs = [convert_to_csv(sqt, sqt_stem) for sqt, sqt_stem in zip(sqts, sqt_stems)]
+    alignment_figs = None
     if mass_alignment is True:
-        _ = [align_mass(sqt_df) for sqt_df in sqt_dfs]
+        print(f'Aligning masses...')
+        figs = [align_mass(sqt_df, mass_alignment_dim, mass_alignment_percentile) for sqt_df in sqt_dfs]
+        alignment_figs = figs
+
+
     sqt_df = pd.concat(sqt_dfs, ignore_index=True)
-    sqt_df = sqt_df[sqt_df['xcorr'] > 0.0]
+    sqt_df = sqt_df[sqt_df['xcorr'] > xcorr_filter]
     sqt_df = sqt_df[sqt_df['m_line'] < max_mline]
 
     fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas)]
@@ -177,13 +222,15 @@ def mokafilter(sqts: List[IO[str]],
     pin_df = convert_to_moka(sqt_df)
 
     if enzyme_term is True:
-        pin_df['tryp'] = [int(peptide[0] in enzyme_regex[1:-1]) + int(strip_modifications(peptide[:-2])[-1] in enzyme_regex[1:-1]) for peptide in
-                          sqt_df['sequence']]
+        pin_df['tryp'] = [
+            int(peptide[0] in enzyme_regex[1:-1]) + int(strip_modifications(peptide[:-2])[-1] in enzyme_regex[1:-1]) for
+            peptide in
+            sqt_df['sequence']]
     else:
         pin_df['tryp'] = [int(peptide[2] in enzyme_regex[1:-1]) + int(peptide[-1] in enzyme_regex[1:-1]) for peptide in
                           sqt_df['sequence']]
 
-    if any(sqt_df['tims_score']) and timscore:
+    if any(sqt_df['tims_score']) and timscore is True:
         pin_df['tims_score'] = sqt_df['tims_score']
         pin_df['tims_score'] = pin_df['tims_score'].fillna(value=0)
 
@@ -280,7 +327,6 @@ def mokafilter(sqts: List[IO[str]],
         for peptide_line in result.peptide_lines:
             peptide_line.redundancy = peptide_counts[peptide_line.sequence]
 
-
     # Finalize DTASelect-filter.txt lines
     unfiltered_proteins = len(target_protein_results) + len(decoy_protein_results)
     unfiltered_peptides = len(target_peptide_results) + len(decoy_peptide_results)
@@ -291,8 +337,9 @@ def mokafilter(sqts: List[IO[str]],
     target_protein_groups = len([result.protein_lines[0].locus_name for result in target_results])
     target_proteins = sum([len(result.protein_lines) for result in target_results])
 
-    target_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in target_results for peptide_line in
-         result.peptide_lines]
+    target_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in target_results for
+                                   peptide_line in
+                                   result.peptide_lines]
     target_peptides = len(set(target_peptide_charge_pairs))
     total_target_peptides = len(target_peptide_charge_pairs)
     target_spectra = sum([result.protein_lines[0].spectrum_count for result in target_results])
@@ -302,8 +349,9 @@ def mokafilter(sqts: List[IO[str]],
     decoy_protein_groups = len([result.protein_lines[0].locus_name for result in decoy_results])
     decoy_proteins = sum([len(result.protein_lines) for result in decoy_results])
 
-    decoy_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in decoy_results for peptide_line in
-         result.peptide_lines]
+    decoy_peptide_charge_pairs = [(peptide_line.charge, peptide_line.sequence[2:-2]) for result in decoy_results for
+                                  peptide_line in
+                                  result.peptide_lines]
     decoy_peptides = len(set(decoy_peptide_charge_pairs))
     total_decoy_peptides = len(decoy_peptide_charge_pairs)
     decoy_spectra = sum([result.protein_lines[0].spectrum_count for result in decoy_results])
@@ -361,7 +409,7 @@ def mokafilter(sqts: List[IO[str]],
             dta_filter_results=filter_results,
             end_lines=end_lines)
 
-    return dta_filter_content
+    return alignment_figs, StringIO(dta_filter_content)
 
 
 if __name__ == '__main__':

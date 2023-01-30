@@ -22,7 +22,7 @@ setup(
     python_requires='>=3.10',
     entry_points={
         'console_scripts': [
-            'mokafilter = ip2mokapot.sqt_to_filter:run',
+            'mokafilter = ip2mokapot.filter:run',
         ],
     },
 )
