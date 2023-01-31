@@ -1,7 +1,6 @@
 import re
 from collections import defaultdict
 from xml.etree import ElementTree
-import multiprocessing as mp
 
 import numpy as np
 from mokapot.parsers.fasta import _group_proteins, _cleave
@@ -220,7 +219,6 @@ def digest(
         The peptides resulting from the digested sequence.
     """
     sites = _cleavage_sites(sequence, enzyme_regex, enzyme_term)
-
     peptides = _cleave(
         sequence=sequence,
         sites=sites,
@@ -233,20 +231,6 @@ def digest(
 
     return peptides
 
-
-def process_protein(seq, prot, enzyme_regex, missed_cleavages, min_length, max_length, semi, clip_nterm_methionine, enzyme_term):
-    peps = digest(
-        seq,
-        enzyme_regex=enzyme_regex,
-        missed_cleavages=missed_cleavages,
-        min_length=min_length,
-        max_length=max_length,
-        semi=semi,
-        clip_nterm_methionine=clip_nterm_methionine,
-        enzyme_term=enzyme_term
-    )
-
-    return (peps, prot)
 
 def read_fasta(
         fasta,
@@ -317,15 +301,18 @@ def read_fasta(
     # Build the initial mapping
     proteins = {}
     peptides = defaultdict(set)
+    for prot, seq, desc in fasta:
+        peps = digest(
+            seq,
+            enzyme_regex=enzyme_regex,
+            missed_cleavages=missed_cleavages,
+            min_length=min_length,
+            max_length=max_length,
+            semi=semi,
+            clip_nterm_methionine=clip_nterm_methionine,
+            enzyme_term=enzyme_term
+        )
 
-    pool = mp.Pool(processes=mp.cpu_count())
-    results = [pool.apply_async(process_protein, args=(seq,prot, enzyme_regex, missed_cleavages, min_length, max_length, semi, clip_nterm_methionine, enzyme_term)) for prot, seq, desc in fasta]
-
-    pool.close()
-    pool.join()
-
-    for result in results:
-        peps, prot = result.get()
         if peps:
             proteins[prot] = peps
             for pep in peps:

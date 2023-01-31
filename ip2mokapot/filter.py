@@ -169,6 +169,7 @@ def mokafilter(sqts: List[IO[str]],
         semi = specificity != 2
         if specificity == 0:
             enzyme_regex = '.'
+            missed_cleavage = max_length
         else:
             enzyme_regex = f"[{''.join(xml_dict['enzyme_info']['residues']['residue'])}]"
         enzyme_term = xml_dict['enzyme_info']['type'] == 'true'
