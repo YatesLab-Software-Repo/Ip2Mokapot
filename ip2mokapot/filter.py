@@ -164,7 +164,7 @@ def mokafilter(sqts: List[IO[str]],
         xml_dict = xml_to_dict(search_xml)
         missed_cleavage = int(xml_dict['enzyme_info']['max_num_internal_mis_cleavage'])
         if missed_cleavage == -1:
-            missed_cleavage = 100
+            missed_cleavage = max_length
         specificity = int(xml_dict['enzyme_info']['specificity'])
         semi = specificity != 2
         if specificity == 0:
