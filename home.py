@@ -82,12 +82,13 @@ if st.button('Run'):
     elif dta_params_txt:
         dta_params_io = StringIO(dta_params_txt)
 
-    alignment_figs, dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
+    alignment_figs, pin_df, dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
                                     search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length,
                                     semi,
                                     decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore,
                                     mass_alignment,
                                     max_mline, random_seed, dta_params_io, xcorr_filter, mass_alignment_dim, mass_alignment_percentile)
+
 
     if alignment_figs:
         for fig, stem in zip(alignment_figs, sqt_stems):

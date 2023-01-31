@@ -57,6 +57,7 @@ HELP_DESCRIPTION = """
     Once all of the necessary files have been uploaded, click run and Ip2MokaPot will generate a filtered results list of proteins, peptides, and spectra at the provided false discovery rate (FDR).
     
     
+    Note: this app uses mokapot:
     
     Fondrie W. E. & Noble W. S. mokapot: Fast and Flexible Semisupervised Learning for Peptide Detection. J Proteome Res (2021) doi: 10.1021/acs.jproteome.0c01010. PMID: 33596079.
     """

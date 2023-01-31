@@ -21,7 +21,8 @@ from .config import *
 
 # TODO: Make option to save intermediate mokapot files somewhere
 # TODO: Add option to train hyper params
-# TODO: Enable grouping when multiple search.xml files are uploaded
+# TODO: Make Protein digestion threaded (since its slow for semi)
+# TODO: Fix enzyme regex and tryptic status issue, For complex regexes the tryptic status will not work right
 
 def parse_args() -> argparse.Namespace:
     """
@@ -86,7 +87,7 @@ def run():
     if args.dta_params:
         dta_params = Path(args.dta_params).open()
 
-    alignment_figs, dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
+    alignment_figs, pin_df, dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
                                     search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
                                     args.min_length, args.max_length, args.semi, args.decoy_prefix, args.xgboost,
                                     args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter, args.timscore,
@@ -95,6 +96,8 @@ def run():
 
     with open(Path(args.out), 'w') as file:
         file.write(dta_filter_content.read())
+
+    pin_df.to_csv(args.out + '.pin', index=False)
 
     if alignment_figs:
         for fig, stem in zip(alignment_figs, sqt_stems):
@@ -140,7 +143,7 @@ def mokafilter(sqts: List[IO[str]],
                dta_params: Union[IO[str], None],
                xcorr_filter: float,
                mass_alignment_dim: int,
-               mass_alignment_percentile: float) -> (List, IO[str]):
+               mass_alignment_percentile: float) -> (List, pd.DataFrame, IO[str]):
     """
     What a mess of code...
 
@@ -161,9 +164,13 @@ def mokafilter(sqts: List[IO[str]],
         xml_dict = xml_to_dict(search_xml)
         missed_cleavage = int(xml_dict['enzyme_info']['max_num_internal_mis_cleavage'])
         if missed_cleavage == -1:
-            missed_cleavage = 5
-        semi = int(xml_dict['enzyme_info']['specificity']) != 2
-        enzyme_regex = f"[{''.join(xml_dict['enzyme_info']['residues']['residue'])}]"
+            missed_cleavage = 100
+        specificity = int(xml_dict['enzyme_info']['specificity'])
+        semi = specificity != 2
+        if specificity == 0:
+            enzyme_regex = '.'
+        else:
+            enzyme_regex = f"[{''.join(xml_dict['enzyme_info']['residues']['residue'])}]"
         enzyme_term = xml_dict['enzyme_info']['type'] == 'true'
         min_length = int(xml_dict['peptide_length_limits']['minimum'])
 
@@ -211,7 +218,6 @@ def mokafilter(sqts: List[IO[str]],
         figs = [align_mass(sqt_df, mass_alignment_dim, mass_alignment_percentile) for sqt_df in sqt_dfs]
         alignment_figs = figs
 
-
     sqt_df = pd.concat(sqt_dfs, ignore_index=True)
     sqt_df = sqt_df[sqt_df['xcorr'] > xcorr_filter]
     sqt_df = sqt_df[sqt_df['m_line'] < max_mline]
@@ -221,14 +227,14 @@ def mokafilter(sqts: List[IO[str]],
 
     pin_df = convert_to_moka(sqt_df)
 
-    if enzyme_term is True:
+    """if enzyme_term is True:
         pin_df['tryp'] = [
             int(peptide[0] in enzyme_regex[1:-1]) + int(strip_modifications(peptide[:-2])[-1] in enzyme_regex[1:-1]) for
             peptide in
             sqt_df['sequence']]
     else:
         pin_df['tryp'] = [int(peptide[2] in enzyme_regex[1:-1]) + int(peptide[-1] in enzyme_regex[1:-1]) for peptide in
-                          sqt_df['sequence']]
+                          sqt_df['sequence']]"""
 
     if any(sqt_df['tims_score']) and timscore is True:
         pin_df['tims_score'] = sqt_df['tims_score']
@@ -245,6 +251,7 @@ def mokafilter(sqts: List[IO[str]],
                           semi=semi,
                           decoy_prefix=decoy_prefix,
                           enzyme_term=enzyme_term)
+
     psms.add_proteins(proteins)
 
     if xgboost:
@@ -409,7 +416,7 @@ def mokafilter(sqts: List[IO[str]],
             dta_filter_results=filter_results,
             end_lines=end_lines)
 
-    return alignment_figs, StringIO(dta_filter_content)
+    return alignment_figs, pin_df, StringIO(dta_filter_content)
 
 
 if __name__ == '__main__':
