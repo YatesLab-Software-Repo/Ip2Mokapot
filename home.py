@@ -68,9 +68,11 @@ if st.button('Run'):
         st.warning('Please upload the required file types: SQT & FASTA')
         st.stop()
 
-    sqt_ios = [StringIO(sqt.getvalue().decode("utf-8")) for sqt in sqts]
-    fasta_ios = [StringIO(fasta.getvalue().decode("utf-8")) for fasta in fastas]
+    sqt_ios = {StringIO(sqt.getvalue().decode("utf-8")) for sqt in sqts}
     sqt_stems = [''.join(sqt.name.split('.')[:-1]) for sqt in sqts]
+
+    fasta_ios = {StringIO(fasta.getvalue().decode("utf-8")) for fasta in fastas}
+    fasta_stems = [''.join(fasta.name.split('.')[:-1]) for fasta in fastas]
 
     search_xml_io = None
     if search_xml:
@@ -82,10 +84,10 @@ if st.button('Run'):
     elif dta_params_txt:
         dta_params_io = StringIO(dta_params_txt)
 
-    alignment_figs, pin_df, dta_filter_content = mokafilter(sqt_ios, fasta_ios, protein_fdr, peptide_fdr, psm_fdr, min_peptides,
+    alignment_figs, pin_df, dta_filter_content = mokafilter((sqt_ios, sqt_stems), (fasta_ios, fasta_stems), protein_fdr, peptide_fdr, psm_fdr, min_peptides,
                                     search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length,
                                     semi,
-                                    decoy_prefix, xgboost, test_fdr, folds, workers, sqt_stems, max_itr, timscore,
+                                    decoy_prefix, xgboost, test_fdr, folds, workers, max_itr, timscore,
                                     mass_alignment,
                                     max_mline, random_seed, dta_params_io, xcorr_filter, mass_alignment_dim, mass_alignment_percentile)
 

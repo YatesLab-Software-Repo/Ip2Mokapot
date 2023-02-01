@@ -301,7 +301,7 @@ def read_fasta(
     # Build the initial mapping
     proteins = {}
     peptides = defaultdict(set)
-    for prot, seq, desc in fasta:
+    for i, (prot, seq, desc) in enumerate(fasta):
         peps = digest(
             seq,
             enzyme_regex=enzyme_regex,
@@ -317,6 +317,8 @@ def read_fasta(
             proteins[prot] = peps
             for pep in peps:
                 peptides[pep].add(prot)
+
+            # print(f'{i} {len(peps)}')
 
     total_prots = len(fasta)
     LOGGER.info("  - Parsed and digested %i proteins.", total_prots)

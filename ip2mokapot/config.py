@@ -1,6 +1,6 @@
 # File Inputs
-SQTS_DESCRIPTION = 'Path to SQTs files'
-FASTAS_DESCRIPTION = 'Path to FASTA file used to generate the provided SQT files'
+SQTS_DESCRIPTION = 'Path to .sqt files and/or folders containing .sqt files'
+FASTAS_DESCRIPTION = 'Path to .fasta file and/or folders containing .fasta files'
 SEARCH_XML_DESCRIPTION = 'The path to the search.xml file used to generate the input SQT files. Note: Including a search.xml file will override the following arguments: enzyme_regex, missed_cleavage, min_length, semi'
 DTASELECT_PARAMS_DESCRIPTION='Path to dtaSelect.params file, Note: Including a DTASelect.params file will override the following arguments: protein_fdr, peptide_fdr, psm_fdr, and min_peptides'
 OUT_DESCRIPTION = 'The output DTASelect-filter.txt path'

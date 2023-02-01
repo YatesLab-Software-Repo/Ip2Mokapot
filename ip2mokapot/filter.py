@@ -1,11 +1,10 @@
-from __future__ import annotations
-
 import argparse
 from io import StringIO
 from pathlib import Path
 from collections import Counter
-from typing import List, Union
+from typing import List, Union, Tuple, Iterator
 
+import matplotlib
 import mokapot
 import numpy as np
 import pandas as pd
@@ -47,25 +46,51 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--missed_cleavage', required=False, default=0, type=int, help=MISSED_CLEAVAGE_DESCRIPTION)
     _parser.add_argument('--min_length', required=False, default=6, type=float, help=MIN_LENGTH_DESCRIPTION)
     _parser.add_argument('--max_length', required=False, default=50, type=float, help=MAX_LENGTH_DESCRIPTION)
-    _parser.add_argument('--semi', required=False, default=False, type=bool, help=SEMI_DESCRIPTION)
+    _parser.add_argument('--semi', required=False, default=False, action=argparse.BooleanOptionalAction, help=SEMI_DESCRIPTION)
     _parser.add_argument('--decoy_prefix', required=False, default='Reverse_', type=str, help=DECOY_PREFIX_DESCRIPTION)
 
-    _parser.add_argument('--xgboost', required=False, default=False, type=bool, help=XGBOOST_DESCRIPTION)
+    _parser.add_argument('--xgboost', required=False, default=False, action=argparse.BooleanOptionalAction, help=XGBOOST_DESCRIPTION)
     _parser.add_argument('--test_fdr', required=False, default=0.01, type=float, help=TEST_FDR_DESCRIPTION)
     _parser.add_argument('--folds', required=False, default=3, type=int, help=FOLDS_DESCRIPTION)
     _parser.add_argument('--workers', required=False, default=1, type=int, help=WORKERS_DESCRIPTION)
     _parser.add_argument('--max_iter', required=False, default=10, type=int, help=MAX_ITER_DESCRIPTION)
 
-    _parser.add_argument('--timscore', required=False, default=False, type=bool, help=TIMSCORE_DESCRIPTION)
-    _parser.add_argument('--mass_alignment', required=False, default=True, type=bool, help=MASS_ALIGNMENT_DESCRIPTION)
-    _parser.add_argument('--mass_alignment_dim', required=False, default=1, type=int, help=MASS_ALIGNMENT_DIM_DESCRIPTION)
-    _parser.add_argument('--mass_alignment_percentile', required=False, default=95, type=int, help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
+    _parser.add_argument('--timscore', default=False, action=argparse.BooleanOptionalAction, help=TIMSCORE_DESCRIPTION)
+    _parser.add_argument('--mass_alignment', default=True, action=argparse.BooleanOptionalAction, help=MASS_ALIGNMENT_DESCRIPTION)
+    _parser.add_argument('--mass_alignment_dim', required=False, default=1, type=int,
+                         help=MASS_ALIGNMENT_DIM_DESCRIPTION)
+    _parser.add_argument('--mass_alignment_percentile', required=False, default=95, type=int,
+                         help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
 
     _parser.add_argument('--max_mline', required=False, default=5, type=int, help=MAX_MLINE_DESCRIPTION)
     _parser.add_argument('--seed', required=False, default=None, type=int, help=MAX_SEED_DESCRIPTION)
     _parser.add_argument('--xcorr_filter', required=False, default=0.0, type=float, help=XCORR_FILTER_DESCRIPTION)
 
     return _parser.parse_args()
+
+
+def io_gen(paths: List[Path], ext) -> Iterator[IO[str]]:
+    for path in paths:
+        if path.is_file():
+            with path.open() as file:
+                yield file
+        else:
+            if path.is_dir():
+                pathlist = path.rglob(f'*{ext}')
+                for p in pathlist:
+                    with p.open() as file:
+                        yield file
+
+
+def stem_gen(paths: List[Path], ext) -> Iterator[str]:
+    for path in paths:
+        if path.is_file():
+            yield path.stem
+        else:
+            if path.is_dir():
+                pathlist = path.rglob(f'*{ext}')
+                for p in pathlist:
+                    yield p.stem
 
 
 def run():
@@ -75,9 +100,13 @@ def run():
 
     """
     args = parse_args()
-    sqts = [Path(sqt).open() for sqt in args.sqts]
-    sqt_stems = [str(Path(sqt).stem) for sqt in args.sqts]
-    fastas = [Path(fasta).open() for fasta in args.fastas]
+    sqt_paths = [Path(sqt) for sqt in args.sqts]
+    sqt_ios = io_gen(sqt_paths, '.sqt')
+    sqt_stems = list(stem_gen(sqt_paths, '.sqt'))
+
+    fasta_paths = [Path(fasta) for fasta in args.fastas]
+    fasta_ios = io_gen(fasta_paths, '.fasta')
+    fasta_stems = list(stem_gen(fasta_paths, '.fasta'))
 
     search_xml = None
     if args.search_xml:
@@ -87,12 +116,19 @@ def run():
     if args.dta_params:
         dta_params = Path(args.dta_params).open()
 
-    alignment_figs, pin_df, dta_filter_content = mokafilter(sqts, fastas, args.protein_fdr, args.peptide_fdr, args.psm_fdr, args.min_peptides,
-                                    search_xml, args.enzyme_regex, args.enzyme_term, args.missed_cleavage,
-                                    args.min_length, args.max_length, args.semi, args.decoy_prefix, args.xgboost,
-                                    args.test_fdr, args.folds, args.workers, sqt_stems, args.max_iter, args.timscore,
-                                    args.mass_alignment, args.max_mline, args.seed, dta_params, args.xcorr_filter,
-                                                    args.mass_alignment_dim, args.mass_alignment_percentile)
+    print(args)
+    alignment_figs, pin_df, dta_filter_content = mokafilter((sqt_ios, sqt_stems), (fasta_ios, fasta_stems),
+                                                            args.protein_fdr, args.peptide_fdr, args.psm_fdr,
+                                                            args.min_peptides,
+                                                            search_xml, args.enzyme_regex, args.enzyme_term,
+                                                            args.missed_cleavage,
+                                                            args.min_length, args.max_length, args.semi,
+                                                            args.decoy_prefix, args.xgboost,
+                                                            args.test_fdr, args.folds, args.workers, args.max_iter,
+                                                            args.timscore,
+                                                            args.mass_alignment, args.max_mline, args.seed, dta_params,
+                                                            args.xcorr_filter,
+                                                            args.mass_alignment_dim, args.mass_alignment_percentile)
 
     with open(Path(args.out), 'w') as file:
         file.write(dta_filter_content.read())
@@ -105,20 +141,15 @@ def run():
             print(f'Saving alignment plot to {png_name}')
             fig.savefig(png_name)
 
-    # Close Files
-    for fasta in fastas:
-        fasta.close()
-
-    for sqt in sqts:
-        sqt.close()
-
     if dta_params:
         dta_params.close()
 
     if search_xml:
         search_xml.close()
-def mokafilter(sqts: List[IO[str]],
-               fastas: List[IO[str]],
+
+
+def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
+               fastas: Tuple[Iterator[IO[str]], List[str]],
                protein_fdr: float,
                peptide_fdr: float,
                psm_fdr: float,
@@ -134,7 +165,6 @@ def mokafilter(sqts: List[IO[str]],
                xgboost: bool,
                test_fdr: float,
                folds: int, workers: int,
-               sqt_stems: list[str],
                max_iter: int,
                timscore: bool,
                mass_alignment: bool,
@@ -143,7 +173,7 @@ def mokafilter(sqts: List[IO[str]],
                dta_params: Union[IO[str], None],
                xcorr_filter: float,
                mass_alignment_dim: int,
-               mass_alignment_percentile: float) -> (List, pd.DataFrame, IO[str]):
+               mass_alignment_percentile: float) -> (List[matplotlib.figure.Figure], pd.DataFrame, IO[str]):
     """
     What a mess of code...
 
@@ -176,8 +206,8 @@ def mokafilter(sqts: List[IO[str]],
         min_length = int(xml_dict['peptide_length_limits']['minimum'])
 
     tabulated_args = tabulate([
-        ["sqt files", len(sqts)],
-        ["fasta files", len(fastas)],
+        ["sqt files", list(sqts[1])],
+        ["fasta files", list(fastas[1])],
         ["search_xml", True if search_xml else False],
         ['dta_params', True if dta_params else False],
         ['protein_fdr', protein_fdr],
@@ -212,7 +242,7 @@ def mokafilter(sqts: List[IO[str]],
         print(f'Setting random seed: {seed}')
         np.random.seed(seed)
 
-    sqt_dfs = [convert_to_csv(sqt, sqt_stem) for sqt, sqt_stem in zip(sqts, sqt_stems)]
+    sqt_dfs = [convert_to_csv(sqt_io, sqt_stem) for sqt_io, sqt_stem in zip(sqts[0], sqts[1])]
     alignment_figs = None
     if mass_alignment is True:
         print(f'Aligning masses...')
@@ -223,7 +253,7 @@ def mokafilter(sqts: List[IO[str]],
     sqt_df = sqt_df[sqt_df['xcorr'] > xcorr_filter]
     sqt_df = sqt_df[sqt_df['m_line'] < max_mline]
 
-    fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas)]
+    fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas[0])]
     fasta_dict = {e[0]: {'sequence': e[1], 'description': e[2]} for e in fasta_elems}
 
     pin_df = convert_to_moka(sqt_df)
