@@ -137,6 +137,8 @@ def run():
 
     if alignment_figs:
         for fig, stem in zip(alignment_figs, sqt_stems):
+            if fig is None:
+                continue
             png_name = f'{stem}_mass_alignment.png'
             print(f'Saving alignment plot to {png_name}')
             fig.savefig(png_name)
