@@ -26,9 +26,11 @@ def parse_dta_args(arg_string):
     return arg_dict
 
 
-def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.DataFrame:
+def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None, xcorr_filter=None, max_mline=None) -> pd.DataFrame:
     """
     Convert SQT filee into a pandas df
+    :param max_mline:
+    :param xcorr_filter:
     :param sqt_content: contents of the sqt file
     :param filename: name of the sqt file
     :return: the pandas Dataframe
@@ -36,25 +38,28 @@ def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.D
 
     _, _, s_lines = sqt.from_sqt(sqt_content)
 
-    data = {'low_scan': [], 'high_scan': [], 'charge': [], 'process_time': [], 'server': [],
+    data = {'low_scan': [], 'high_scan': [], 'charge': [],
             'experimental_mass': [], 'total_ion_intensity': [], 'lowest_sp': [], 'number_matches': [],
             'experimental_ook0': [], 'experimental_mz': [], 'corrected_ook0': [],
 
             'xcorr_rank': [], 'sp_rank': [], 'calculated_mass': [], 'delta_cn': [], 'xcorr': [], 'sp': [],
             'matched_ions': [],
             'expected_ions': [], 'sequence': [], 'validation_status': [], 'predicted_ook0': [], 'tims_score': [],
-            'tims_b_score_m2': [],
-            'tims_b_score_best_m': [],
 
             'locuses': [], 'target': [], 'm_line': []}
 
     for s_line in s_lines:
         for i, m_line in enumerate(s_line.m_lines[:-1]):
+
+            if max_mline is not None and i >= max_mline:
+                break
+
+            if xcorr_filter is not None and m_line.xcorr <= xcorr_filter:
+                continue
+
             data['low_scan'].append(s_line.low_scan)
             data['high_scan'].append(s_line.high_scan)
             data['charge'].append(s_line.charge)
-            data['process_time'].append(s_line.process_time)
-            data['server'].append(s_line.server)
             data['experimental_mass'].append(s_line.experimental_mass)
             data['total_ion_intensity'].append(s_line.total_ion_intensity)
             data['lowest_sp'].append(s_line.lowest_sp)
@@ -75,8 +80,6 @@ def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.D
             data['validation_status'].append(m_line.validation_status)
             data['predicted_ook0'].append(m_line.predicted_ook0)
             data['tims_score'].append(m_line.tims_score)
-            data['tims_b_score_m2'].append(m_line.tims_b_score_m2)
-            data['tims_b_score_best_m'].append(m_line.tims_b_score_best_m)
 
             data['locuses'].append(' '.join([l_line.locus_name for l_line in m_line.l_lines]))
 
@@ -87,6 +90,7 @@ def convert_to_csv(sqt_content: TextIOWrapper | StringIO, filename=None) -> pd.D
     df.index.name = 'id'
     if filename:
         df['file'] = filename
+
     return df
 
 

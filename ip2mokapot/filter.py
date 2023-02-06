@@ -1,20 +1,22 @@
 import argparse
+import logging
 from io import StringIO
 from pathlib import Path
 from collections import Counter
 from typing import List, Union, Tuple, Iterator
 
 import matplotlib
-import mokapot
 import numpy as np
 import pandas as pd
+import mokapot
+from mokapot.parsers.fasta import _parse_protein, _parse_fasta_files, read_fasta
 from tabulate import tabulate
 from serenipy import dtaselectfilter
 from typing.io import IO
 from xgboost import XGBClassifier
 
 from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, align_mass, parse_dta_args
-from .util import xml_to_dict, read_fasta, _parse_fasta_files, _parse_protein, strip_modifications
+from .util import xml_to_dict
 from .config import *
 
 
@@ -62,9 +64,10 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--mass_alignment_percentile', required=False, default=95, type=int,
                          help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
 
-    _parser.add_argument('--max_mline', required=False, default=5, type=int, help=MAX_MLINE_DESCRIPTION)
+    _parser.add_argument('--max_mline', required=False, default=None, type=int, help=MAX_MLINE_DESCRIPTION)
     _parser.add_argument('--seed', required=False, default=None, type=int, help=MAX_SEED_DESCRIPTION)
-    _parser.add_argument('--xcorr_filter', required=False, default=0.0, type=float, help=XCORR_FILTER_DESCRIPTION)
+    _parser.add_argument('--xcorr_filter', required=False, default=None, type=float, help=XCORR_FILTER_DESCRIPTION)
+    _parser.add_argument('--verbosity', required=False, default=1, type=int)
 
     return _parser.parse_args()
 
@@ -99,7 +102,23 @@ def run():
     Parse args and convert sqts and fasta files into TextIO
 
     """
+
     args = parse_args()
+
+    verbosity_dict = {
+        0: logging.ERROR,
+        1: logging.WARNING,
+        2: logging.INFO,
+        3: logging.DEBUG,
+    }
+
+    logging.basicConfig(
+        format=("[{levelname}] {message}"),
+        style="{",
+        level=verbosity_dict[args.verbosity],
+    )
+
+
     sqt_paths = [Path(sqt) for sqt in args.sqts]
     sqt_ios = io_gen(sqt_paths, '.sqt')
     sqt_stems = list(stem_gen(sqt_paths, '.sqt'))
@@ -244,7 +263,7 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
         print(f'Setting random seed: {seed}')
         np.random.seed(seed)
 
-    sqt_dfs = [convert_to_csv(sqt_io, sqt_stem) for sqt_io, sqt_stem in zip(sqts[0], sqts[1])]
+    sqt_dfs = [convert_to_csv(sqt_io, sqt_stem, xcorr_filter, max_mline) for sqt_io, sqt_stem in zip(sqts[0], sqts[1])]
     alignment_figs = None
     if mass_alignment is True:
         print(f'Aligning masses...')
@@ -252,13 +271,12 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
         alignment_figs = figs
 
     sqt_df = pd.concat(sqt_dfs, ignore_index=True)
-    sqt_df = sqt_df[sqt_df['xcorr'] > xcorr_filter]
-    sqt_df = sqt_df[sqt_df['m_line'] < max_mline]
+    pin_df = convert_to_moka(sqt_df)
+
+    print(pin_df)
 
     fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas[0])]
     fasta_dict = {e[0]: {'sequence': e[1], 'description': e[2]} for e in fasta_elems}
-
-    pin_df = convert_to_moka(sqt_df)
 
     """if enzyme_term is True:
         pin_df['tryp'] = [
