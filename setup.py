@@ -1,13 +1,4 @@
-from pathlib import Path
-
 from setuptools import setup
-
-req = 'requirements.txt'
-if Path(req).is_file():
-    with open(req) as f:
-        requirements = f.read().splitlines()
-else:
-    requirements = []
 
 setup(
     name='ip2mokapot',
@@ -18,8 +9,18 @@ setup(
     author='pgarrett',
     author_email='pgarrett@scripps.edu',
     description='',
-    install_requires=requirements,
-    python_requires='>=3.10',
+    install_requires=[
+                        'numpy==1.23.5',
+                        'pandas==1.5.2',
+                        'serenipy==0.2.4',
+                        'git+https://github.com/pgarrett-scripps/mokapot.git',
+                        'xgboost==1.7.3',
+                        'biopython==1.80',
+                        'streamlit==1.17.0',
+                        'setuptools==65.5.1',
+                        'tabulate==0.9.0',
+                      ],
+    python_requires='>=3.6',
     entry_points={
         'console_scripts': [
             'mokafilter = ip2mokapot.filter:run',
