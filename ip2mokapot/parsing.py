@@ -200,6 +200,7 @@ def get_filter_results_moka(sqt_df: pd.DataFrame, psm_results: pd.DataFrame, pep
     :param fasta_dict: locus to protein sequence map
     :return: list of DTAFilterResult results
     """
+    spec_id_to_qvalue = {spec_id:q_value for spec_id, q_value in psm_results[['SpecId', 'mokapot q-value']].values}
     peptide_to_specid = map_peptide_to_specid(psm_results)
     protein_to_peptides = map_protein_to_peptides(protein_results, peptide_results)
 
@@ -243,7 +244,7 @@ def get_filter_results_moka(sqt_df: pd.DataFrame, psm_results: pd.DataFrame, pep
                                                        m_redundancy=None)
             protein_lines.append(protein_line)
 
-        for _, row in sqt_psm_df.iterrows():
+        for spec_id, row in sqt_psm_df.iterrows():
             peptide = ProteinAnalysis(row['sequence'])
 
             file_path = row['file']
@@ -268,7 +269,7 @@ def get_filter_results_moka(sqt_df: pd.DataFrame, psm_results: pd.DataFrame, pep
                 file_name=file_name,
                 x_corr=row['xcorr'],
                 delta_cn=row['delta_cn'],
-                conf=None,
+                conf=1 - spec_id_to_qvalue[spec_id],
                 mass_plus_hydrogen=row['experimental_mass'],
                 calc_mass_plus_hydrogen=row['calculated_mass'],
                 ppm=ppm,

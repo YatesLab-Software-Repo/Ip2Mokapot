@@ -62,6 +62,7 @@ with st.expander('Advanced'):
     if use_random_seed is True:
         random_seed = st.number_input(label='random_seed', value=42)
 
+    filter_level = st.number_input(label='filter_level', value=0, help=FILTER_LEVEL_DESCRIPTION)
 if st.button('Run'):
 
     if not sqts or not fastas:
@@ -89,7 +90,8 @@ if st.button('Run'):
                                     semi,
                                     decoy_prefix, xgboost, test_fdr, folds, workers, max_itr, timscore,
                                     mass_alignment,
-                                    max_mline, random_seed, dta_params_io, xcorr_filter, mass_alignment_dim, mass_alignment_percentile)
+                                    max_mline, random_seed, dta_params_io, xcorr_filter, mass_alignment_dim,
+                                    mass_alignment_percentile, filter_level)
 
 
     if alignment_figs:

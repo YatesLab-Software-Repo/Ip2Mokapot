@@ -25,6 +25,26 @@ from .config import *
 # TODO: Make Protein digestion threaded (since its slow for semi)
 # TODO: Fix enzyme regex and tryptic status issue, For complex regexes the tryptic status will not work right
 
+def float_range(mini,maxi):
+    """Return function handle of an argument type function for
+       ArgumentParser checking a float range: mini <= arg <= maxi
+         mini - minimum acceptable argument
+         maxi - maximum acceptable argument"""
+
+    # Define the function with default arguments
+    def float_range_checker(arg):
+        """New Type function for argparse - a float within predefined range."""
+
+        try:
+            f = float(arg)
+        except ValueError:
+            raise argparse.ArgumentTypeError("must be a floating point number")
+        if f < mini or f > maxi:
+            raise argparse.ArgumentTypeError("must be in range [" + str(mini) + " .. " + str(maxi)+"]")
+        return f
+
+    # Return function handle to checking function
+    return float_range_checker
 def parse_args() -> argparse.Namespace:
     """
     Argument parser for ip2mokapot
@@ -48,17 +68,20 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--missed_cleavage', required=False, default=0, type=int, help=MISSED_CLEAVAGE_DESCRIPTION)
     _parser.add_argument('--min_length', required=False, default=6, type=float, help=MIN_LENGTH_DESCRIPTION)
     _parser.add_argument('--max_length', required=False, default=50, type=float, help=MAX_LENGTH_DESCRIPTION)
-    _parser.add_argument('--semi', required=False, default=False, action=argparse.BooleanOptionalAction, help=SEMI_DESCRIPTION)
+    _parser.add_argument('--semi', required=False, default=False, action=argparse.BooleanOptionalAction,
+                         help=SEMI_DESCRIPTION)
     _parser.add_argument('--decoy_prefix', required=False, default='Reverse_', type=str, help=DECOY_PREFIX_DESCRIPTION)
 
-    _parser.add_argument('--xgboost', required=False, default=False, action=argparse.BooleanOptionalAction, help=XGBOOST_DESCRIPTION)
+    _parser.add_argument('--xgboost', required=False, default=False, action=argparse.BooleanOptionalAction,
+                         help=XGBOOST_DESCRIPTION)
     _parser.add_argument('--test_fdr', required=False, default=0.01, type=float, help=TEST_FDR_DESCRIPTION)
     _parser.add_argument('--folds', required=False, default=3, type=int, help=FOLDS_DESCRIPTION)
     _parser.add_argument('--workers', required=False, default=1, type=int, help=WORKERS_DESCRIPTION)
     _parser.add_argument('--max_iter', required=False, default=10, type=int, help=MAX_ITER_DESCRIPTION)
 
     _parser.add_argument('--timscore', default=False, action=argparse.BooleanOptionalAction, help=TIMSCORE_DESCRIPTION)
-    _parser.add_argument('--mass_alignment', default=True, action=argparse.BooleanOptionalAction, help=MASS_ALIGNMENT_DESCRIPTION)
+    _parser.add_argument('--mass_alignment', default=True, action=argparse.BooleanOptionalAction,
+                         help=MASS_ALIGNMENT_DESCRIPTION)
     _parser.add_argument('--mass_alignment_dim', required=False, default=1, type=int,
                          help=MASS_ALIGNMENT_DIM_DESCRIPTION)
     _parser.add_argument('--mass_alignment_percentile', required=False, default=95, type=int,
@@ -67,7 +90,8 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--max_mline', required=False, default=None, type=int, help=MAX_MLINE_DESCRIPTION)
     _parser.add_argument('--seed', required=False, default=None, type=int, help=MAX_SEED_DESCRIPTION)
     _parser.add_argument('--xcorr_filter', required=False, default=None, type=float, help=XCORR_FILTER_DESCRIPTION)
-    _parser.add_argument('--verbosity', required=False, default=1, type=int)
+    _parser.add_argument('--verbosity', required=False, default=1, type=int, choices=[0,1,2,3], help=VERBOSITY_DESCRIPTION)
+    _parser.add_argument('--filter_level', required=False, default=0, type=int, choices=[0,1,2], help=FILTER_LEVEL_DESCRIPTION)
 
     return _parser.parse_args()
 
@@ -118,7 +142,6 @@ def run():
         level=verbosity_dict[args.verbosity],
     )
 
-
     sqt_paths = [Path(sqt) for sqt in args.sqts]
     sqt_ios = io_gen(sqt_paths, '.sqt')
     sqt_stems = list(stem_gen(sqt_paths, '.sqt'))
@@ -147,7 +170,8 @@ def run():
                                                             args.timscore,
                                                             args.mass_alignment, args.max_mline, args.seed, dta_params,
                                                             args.xcorr_filter,
-                                                            args.mass_alignment_dim, args.mass_alignment_percentile)
+                                                            args.mass_alignment_dim, args.mass_alignment_percentile,
+                                                            args.filter_level)
 
     with open(Path(args.out), 'w') as file:
         file.write(dta_filter_content.read())
@@ -194,7 +218,8 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
                dta_params: Union[IO[str], None],
                xcorr_filter: float,
                mass_alignment_dim: int,
-               mass_alignment_percentile: float) -> (List[matplotlib.figure.Figure], pd.DataFrame, IO[str]):
+               mass_alignment_percentile: float,
+               filter_level: int) -> (List[matplotlib.figure.Figure], pd.DataFrame, IO[str]):
     """
     What a mess of code...
 
@@ -207,9 +232,11 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
         fp_fdr = float(dta_args.get('--fp', 1.0))
         pfp_fdr = float(dta_args.get('--pfp', 1.0))
         sfp_fdr = float(dta_args.get('--sfp', 1.0))
-        min_peptides = int(dta_args.get('-p', min_peptides))
-        timscore = dta_args.get('--timscore', False)
         protein_fdr, peptide_fdr, psm_fdr = pfp_fdr, sfp_fdr, fp_fdr
+
+        min_peptides = int(dta_args.get('-p', min_peptides))
+        timscore = dta_args.get('--timscore', timscore)
+        filter_level = int(dta_args.get('-t', filter_level))
 
     if search_xml:
         xml_dict = xml_to_dict(search_xml)
@@ -254,6 +281,7 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
         ["max_mline", max_mline],
         ["seed", seed],
         ['xcorr_filter', xcorr_filter],
+        ['filter_level', filter_level]
     ], headers=['Argument', 'Value'], missingval='None')
 
     print(tabulated_args)
@@ -336,13 +364,19 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
     # Convert mokapot result dataframes into serenipy DTASelect-filter results
     # Keep only the results which have >= min peptide lines
     target_filter_results = get_filter_results_moka(sqt_df, filtered_target_psm_results,
-                                                    filtered_target_peptide_results,
-                                                    filtered_target_protein_results, fasta_dict)
-    target_filter_results = [result for result in target_filter_results if len(result.peptide_lines) >= min_peptides]
-    decoy_filter_results = get_filter_results_moka(sqt_df, filtered_decoy_psm_results, filtered_decoy_peptide_results,
-                                                   filtered_decoy_protein_results, fasta_dict)
-    decoy_filter_results = [result for result in decoy_filter_results if len(result.peptide_lines) >= min_peptides]
+                                                    filtered_target_peptide_results, filtered_target_protein_results,
+                                                    fasta_dict)
+
+    decoy_filter_results = get_filter_results_moka(sqt_df, filtered_decoy_psm_results,
+                                                   filtered_decoy_peptide_results, filtered_decoy_protein_results,
+                                                   fasta_dict)
+
     filter_results = target_filter_results + decoy_filter_results
+
+    filter_results = [result for result in filter_results if result.protein_lines[0].sequence_count >= min_peptides]
+
+    for result in filter_results:
+        result.filter(level=filter_level)
 
     # Assign the unique property to peptide lines
     peptide_sets = [{line.sequence for line in result.peptide_lines} for result in filter_results]

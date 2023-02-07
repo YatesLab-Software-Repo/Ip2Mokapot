@@ -45,6 +45,10 @@ MASS_ALIGNMENT_PERCENTILE_DESCRIPTION = 'Represents the xcorr percentile for whi
 MAX_MLINE_DESCRIPTION = 'The maximum number of m lines to use for input to mokapot.'
 XCORR_FILTER_DESCRIPTION = 'The xcorr value for which to filter PSMs, for input into the semi-supervized training loop. only PSMs > xcorr_filter will be included.'
 
+
+VERBOSITY_DESCRIPTION = 'Set the verbosity level. 0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG'
+FILTER_LEVEL_DESCRIPTION = 'Corresponds to the -t value in dtaselect.params. 1: keeps all duplicate PSMs, 2: keeps only the best scoring ' \
+                           'PSMs after grouping by sequence & charge, 2: similar to 1, but groups the PSMs by only sequence.'
 # Help msg
 HELP_DESCRIPTION = """
     
