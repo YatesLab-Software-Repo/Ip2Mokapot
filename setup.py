@@ -13,7 +13,7 @@ setup(
                         'numpy==1.23.5',
                         'pandas==1.5.2',
                         'serenipy==0.2.4',
-                        'mokapot @ git+ssh://git@github.com:YatesLab-Software-Repo/Ip2Mokapot.git',
+                        'mokapot @ https://github.com/YatesLab-Software-Repo/Ip2Mokapot.git',
                         'xgboost==1.7.3',
                         'biopython==1.80',
                         'streamlit==1.17.0',
