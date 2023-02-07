@@ -373,10 +373,6 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
 
     filter_results = target_filter_results + decoy_filter_results
 
-    filter_results = [result for result in filter_results if result.protein_lines[0].sequence_count >= min_peptides]
-
-    for result in filter_results:
-        result.filter(level=filter_level)
 
     # Assign the unique property to peptide lines
     peptide_sets = [{line.sequence for line in result.peptide_lines} for result in filter_results]
@@ -418,6 +414,11 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
     for result in filter_results:
         for peptide_line in result.peptide_lines:
             peptide_line.redundancy = peptide_counts[peptide_line.sequence]
+
+    filter_results = [result for result in filter_results if result.protein_lines[0].sequence_count >= min_peptides]
+
+    for result in filter_results:
+        result.filter(level=filter_level)
 
     # Finalize DTASelect-filter.txt lines
     unfiltered_proteins = len(target_protein_results) + len(decoy_protein_results)
