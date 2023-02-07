@@ -1,6 +1,6 @@
 numpy==1.23.5
 pandas==1.5.2
-serenipy==0.2.3
+serenipy==0.2.4
 git+https://github.com/pgarrett-scripps/mokapot.git
 xgboost==1.7.3
 biopython==1.80
