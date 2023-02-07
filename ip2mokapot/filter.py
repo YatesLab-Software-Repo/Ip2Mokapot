@@ -301,8 +301,6 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
     sqt_df = pd.concat(sqt_dfs, ignore_index=True)
     pin_df = convert_to_moka(sqt_df)
 
-    print(pin_df)
-
     fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas[0])]
     fasta_dict = {e[0]: {'sequence': e[1], 'description': e[2]} for e in fasta_elems}
 
