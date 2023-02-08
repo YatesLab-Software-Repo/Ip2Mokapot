@@ -1,29 +1,28 @@
 # File Inputs
-SQTS_DESCRIPTION = 'Path to .sqt files and/or folders containing .sqt files'
-FASTAS_DESCRIPTION = 'Path to .fasta file and/or folders containing .fasta files'
-SEARCH_XML_DESCRIPTION = 'The path to the search.xml file used to generate the input SQT files. Note: Including a search.xml file will override the following arguments: enzyme_regex, missed_cleavage, min_length, semi'
-DTASELECT_PARAMS_DESCRIPTION='Path to dtaSelect.params file, Note: Including a DTASelect.params file will override the following arguments: protein_fdr, peptide_fdr, psm_fdr, and min_peptides'
-OUT_DESCRIPTION = 'The output DTASelect-filter.txt path'
+SQTS_DESCRIPTION = 'Path to .sqt files and/or folders containing .sqt files. These files represent the output from prolucid search engine and are used as input for further analysis.'
+FASTAS_DESCRIPTION = 'Path to the .fasta file(s) and/or folder(s) containing .fasta files. These files contain the protein sequences used in the search engine.'
+SEARCH_XML_DESCRIPTION = 'The path to the search.xml file used to generate the input SQT files. It contains information about the parameters used in the search engine. Note: including this file will override the following arguments: enzyme_regex, missed_cleavage, min_length, semi.'
+DTASELECT_PARAMS_DESCRIPTION = 'Path to the dtaSelect.params file. This file contains the parameters used by dtaSelect to filter the results from the search engine. Note: including this file will override the following arguments: protein_fdr, peptide_fdr, psm_fdr, and min_peptides.'
+OUT_DESCRIPTION = 'The output DTASelect-filter.txt path. This file will contain the filtered results from the search engine.'
 
 # DTASelect.params arguments
-PROTEIN_FDR_DESCRIPTION = 'The Protein level FDR'
-PEPTIDE_FDR_DESCRIPTION = 'The Peptide level FDR'
-PSM_FDR_DESCRIPTION = 'The PSM level FDR'
-MIN_PEPTIDES_DESCRIPTION = 'The minimum number of peptides required to identify a protein'
+PROTEIN_FDR_DESCRIPTION = 'The false discovery rate (FDR) for proteins.'
+PEPTIDE_FDR_DESCRIPTION = 'The false discovery rate (FDR) for peptides.'
+PSM_FDR_DESCRIPTION = 'The false discovery rate (FDR) for PSMs (peptide-spectrum matches).'
+MIN_PEPTIDES_DESCRIPTION = 'The minimum sequence count required to identify a protein.'
 
 # Search.xml arguments
-ENZYME_REGEX_DESCRIPTION = 'The regex string to determine enzyme sites (should match original search settings!)'
-ENZYME_TERM_DESCRIPTION = 'True if enzyme cleaves at c-term, False if enzyme cleaves at n-term (should match original search settings!)'
-MISSED_CLEAVAGE_DESCRIPTION = 'The number of internal peptide missed cleavages to allow (should match original search settings!)'
-MIN_LENGTH_DESCRIPTION = 'The minimum peptide length (should match original search settings)'
-MAX_LENGTH_DESCRIPTION = 'The maximum peptide length (should match original search settings)'
-SEMI_DESCRIPTION = 'A flag for specifying enzymatic specificity. True if both ends follow adhere to the enzyme_regex, False otherwise'
+ENZYME_REGEX_DESCRIPTION = 'The regular expression (regex) string used to determine the enzyme cleavage sites. This should match the settings used in the original search engine.'
+ENZYME_TERM_DESCRIPTION = 'A flag indicating whether the enzyme cleaves at the C-terminus (True) or N-terminus (False) of the protein. This should match the settings used in the original search engine.'
+MISSED_CLEAVAGE_DESCRIPTION = 'The number of internal peptide missed cleavages allowed in the search. This should match the settings used in the original search engine.'
+MIN_LENGTH_DESCRIPTION = 'The minimum length of a peptide in the search. This should match the settings used in the original search engine.'
+MAX_LENGTH_DESCRIPTION = 'The maximum length of a peptide in the search. This should match the settings used in the original search engine.'
+SEMI_DESCRIPTION = 'A flag for specifying the enzymatic specificity of the search. True if both ends of a peptide follow the enzyme_regex, False otherwise. This should match the settings used in the original search engine.'
 
 # FASTA arguments
-DECOY_PREFIX_DESCRIPTION = 'The decoy prefix found int FASTA and SQT files. For IP2 use Reverse_'
-
+DECOY_PREFIX_DESCRIPTION = 'The prefix used to identify decoy sequences in the FASTA and SQT files. For IP2, the decoy prefix is "Reverse_".'
 # Mokapot arguments
-XGBOOST_DESCRIPTION = 'Use Xbgoost as the model for mokapots semi-supervised training loop. If false mokapot will use its Percolator like model.'
+XGBOOST_DESCRIPTION = 'A flag to indicate whether to use XGBoost as the model for mokapots semi-supervised training loop. If set to False, mokapot will use its Percolator-like model.'
 TEST_FDR_DESCRIPTION = """The false-discovery rate threshold at which to evaluate
         the learned models."""
 FOLDS_DESCRIPTION = """The number of cross-validation folds to use. PSMs originating
@@ -34,34 +33,32 @@ WORKERS_DESCRIPTION = """The number of processes to use for model training. More
         no additional effect. Note that logging messages will be garbled
         if more than one worker is enabled."""
 MAX_ITER_DESCRIPTION = 'The number of iterations to preform during the semi-supervized training loop'
-TIMSCORE_DESCRIPTION = 'A flag to denote PaSER SQT files. Setting this to True will 1) use timscores as a feature in mokapot, and 2) output a PaSER compatible DTASelect-filter.txt file'
-MAX_SEED_DESCRIPTION = 'The random seed to use, for reproducibility.'
+TIMSCORE_DESCRIPTION = 'A flag to denote the use of PaSER SQT files. Setting this to True will 1) use timscores as a feature in mokapot and 2) output a PaSER compatible DTASelect-filter.txt file.'
+MAX_SEED_DESCRIPTION = 'The random seed to use for reproducibility.'
 
 # IP2Mokapot arguments
-MASS_ALIGNMENT_DESCRIPTION = 'Align masses within each sqt file, and recalculate ppm. Alignment uses a 1D polyfit fitted to the mass ppm drift vs retention time'
-MASS_ALIGNMENT_DIM_DESCRIPTION = 'The number of dimensions to use in the polyfit alignment function. 1 in linear, 2 is quadratic...'
-MASS_ALIGNMENT_PERCENTILE_DESCRIPTION = 'Represents the xcorr percentile for which to fit the mass alignment function.'
+MASS_ALIGNMENT_DESCRIPTION = 'Alignment of masses within each SQT file, with recalculation of ppm based on a N-dimensional function fit to the mass-ppm drift versus retention time relationship (where N is specified by --mass_alignment_dim)'
+MASS_ALIGNMENT_DIM_DESCRIPTION = 'The number of dimensions to use in the alignment function, with 1 being linear and 2 being quadratic, etc.'
+MASS_ALIGNMENT_PERCENTILE_DESCRIPTION = 'The xcorr percentile for which to fit the mass alignment function, represented as an integer.'
 
-MAX_MLINE_DESCRIPTION = 'The maximum number of m lines to use for input to mokapot.'
-XCORR_FILTER_DESCRIPTION = 'The xcorr value for which to filter PSMs, for input into the semi-supervized training loop. only PSMs > xcorr_filter will be included.'
+MAX_MLINE_DESCRIPTION = 'The maximum number of m lines to be used as input for mokapot per spectra.'
+XCORR_FILTER_DESCRIPTION = 'The xcorr value to be used as a filter for PSMs before they are included in the semi-supervised training loop, only PSMs with xcorr values greater than this will be included.'
 
+VERBOSITY_DESCRIPTION = 'The level of verbosity to be used, with options ranging from 0 (ERROR), 1 (WARNING), 2 (INFO), to 3 (DEBUG).'
+FILTER_LEVEL_DESCRIPTION = 'Corresponds to the -t value in the dtaselect.params file and determines the level of filtering for duplicate PSMs, with options ranging from 1 (keep all), 2 (keep best-scoring PSMs after grouping by sequence and charge), to 3 (keep best-scoring PSMs after grouping by only sequence).'
 
-VERBOSITY_DESCRIPTION = 'Set the verbosity level. 0: ERROR, 1: WARNING, 2: INFO, 3: DEBUG'
-FILTER_LEVEL_DESCRIPTION = 'Corresponds to the -t value in dtaselect.params. 1: keeps all duplicate PSMs, 2: keeps only the best scoring ' \
-                           'PSMs after grouping by sequence & charge, 2: similar to 1, but groups the PSMs by only sequence.'
 # Help msg
 HELP_DESCRIPTION = """
-    
-    Welcome to MokaFilter! This tutorial will guide you through your first time using our app.
-    
-    To begin, upload one or more SQT files. These files contain the raw peptide search matches (PSMs) from the Prolucid search engine.
-    Next, upload one or more FASTA files. These files(s) should be the ones used generate the SQT files
-    Next, upload the search.xml file, which specifies the Prolucid search parameters.
-    Next upload the dtaselect.params file, which contains the filtering parameters.
-    Once all of the necessary files have been uploaded, click run and Ip2MokaPot will generate a filtered results list of proteins, peptides, and spectra at the provided false discovery rate (FDR).
-    
-    
-    Note: this app uses mokapot:
-    
-    Fondrie W. E. & Noble W. S. mokapot: Fast and Flexible Semisupervised Learning for Peptide Detection. J Proteome Res (2021) doi: 10.1021/acs.jproteome.0c01010. PMID: 33596079.
-    """
+
+Welcome to MokaFilter! This tutorial will help you get started with our app.
+
+Start by uploading one or multiple SQT files. These files contain the raw peptide search matches (PSMs) from the Prolucid search engine.
+Then, upload one or more FASTA files. These files should be the ones used to generate the SQT files.
+Upload the search.xml file to specify the Prolucid search parameters.
+Lastly, upload the dtaselect.params file which holds the filtering parameters.
+Once all necessary files are uploaded, click "run" and MokaFilter will generate a filtered results list of proteins, peptides, and spectra at the provided false discovery rate (FDR).
+
+Note: MokaFilter uses the mokapot software:
+
+Fondrie W. E. & Noble W. S. mokapot: Fast and Flexible Semisupervised Learning for Peptide Detection. J Proteome Res (2021) doi: 10.1021/acs.jproteome.0c01010. PMID: 33596079.
+"""

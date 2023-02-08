@@ -22,36 +22,15 @@ from .config import *
 
 # TODO: Make option to save intermediate mokapot files somewhere
 # TODO: Add option to train hyper params
-# TODO: Make Protein digestion threaded (since its slow for semi)
 # TODO: Fix enzyme regex and tryptic status issue, For complex regexes the tryptic status will not work right
 
-def float_range(mini,maxi):
-    """Return function handle of an argument type function for
-       ArgumentParser checking a float range: mini <= arg <= maxi
-         mini - minimum acceptable argument
-         maxi - maximum acceptable argument"""
-
-    # Define the function with default arguments
-    def float_range_checker(arg):
-        """New Type function for argparse - a float within predefined range."""
-
-        try:
-            f = float(arg)
-        except ValueError:
-            raise argparse.ArgumentTypeError("must be a floating point number")
-        if f < mini or f > maxi:
-            raise argparse.ArgumentTypeError("must be in range [" + str(mini) + " .. " + str(maxi)+"]")
-        return f
-
-    # Return function handle to checking function
-    return float_range_checker
 def parse_args() -> argparse.Namespace:
     """
     Argument parser for ip2mokapot
     :return: argparse.Namespace - parsed arsg
     """
-    _parser = argparse.ArgumentParser(description='Arguments for MokaFilter',
-                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    _parser = argparse.ArgumentParser(description='Arguments for MokaFilter', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
     _parser.add_argument('--sqts', required=True, nargs='+', type=str, help=SQTS_DESCRIPTION)
     _parser.add_argument('--fastas', required=True, nargs='+', type=str, help=FASTAS_DESCRIPTION)
     _parser.add_argument('--out', required=True, type=str, help=OUT_DESCRIPTION)
@@ -68,25 +47,19 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--missed_cleavage', required=False, default=0, type=int, help=MISSED_CLEAVAGE_DESCRIPTION)
     _parser.add_argument('--min_length', required=False, default=6, type=float, help=MIN_LENGTH_DESCRIPTION)
     _parser.add_argument('--max_length', required=False, default=50, type=float, help=MAX_LENGTH_DESCRIPTION)
-    _parser.add_argument('--semi', required=False, default=False, action=argparse.BooleanOptionalAction,
-                         help=SEMI_DESCRIPTION)
+    _parser.add_argument('--semi', required=False, default=False, action=argparse.BooleanOptionalAction, help=SEMI_DESCRIPTION)
     _parser.add_argument('--decoy_prefix', required=False, default='Reverse_', type=str, help=DECOY_PREFIX_DESCRIPTION)
 
-    _parser.add_argument('--xgboost', required=False, default=False, action=argparse.BooleanOptionalAction,
-                         help=XGBOOST_DESCRIPTION)
+    _parser.add_argument('--xgboost', required=False, default=False, action=argparse.BooleanOptionalAction, help=XGBOOST_DESCRIPTION)
     _parser.add_argument('--test_fdr', required=False, default=0.01, type=float, help=TEST_FDR_DESCRIPTION)
     _parser.add_argument('--folds', required=False, default=3, type=int, help=FOLDS_DESCRIPTION)
     _parser.add_argument('--workers', required=False, default=1, type=int, help=WORKERS_DESCRIPTION)
     _parser.add_argument('--max_iter', required=False, default=10, type=int, help=MAX_ITER_DESCRIPTION)
 
     _parser.add_argument('--timscore', default=False, action=argparse.BooleanOptionalAction, help=TIMSCORE_DESCRIPTION)
-    _parser.add_argument('--mass_alignment', default=True, action=argparse.BooleanOptionalAction,
-                         help=MASS_ALIGNMENT_DESCRIPTION)
-    _parser.add_argument('--mass_alignment_dim', required=False, default=1, type=int,
-                         help=MASS_ALIGNMENT_DIM_DESCRIPTION)
-    _parser.add_argument('--mass_alignment_percentile', required=False, default=95, type=int,
-                         help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
-
+    _parser.add_argument('--mass_alignment', default=True, action=argparse.BooleanOptionalAction, help=MASS_ALIGNMENT_DESCRIPTION)
+    _parser.add_argument('--mass_alignment_dim', required=False, default=1, type=int, help=MASS_ALIGNMENT_DIM_DESCRIPTION)
+    _parser.add_argument('--mass_alignment_percentile', required=False, default=95, type=int,help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
     _parser.add_argument('--max_mline', required=False, default=None, type=int, help=MAX_MLINE_DESCRIPTION)
     _parser.add_argument('--seed', required=False, default=None, type=int, help=MAX_SEED_DESCRIPTION)
     _parser.add_argument('--xcorr_filter', required=False, default=None, type=float, help=XCORR_FILTER_DESCRIPTION)
