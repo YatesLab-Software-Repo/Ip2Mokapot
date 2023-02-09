@@ -208,11 +208,11 @@ def get_filter_results_moka(sqt_df: pd.DataFrame, psm_results: pd.DataFrame, pep
     for protein, peptides in protein_to_peptides.items():
         protein_lines = []
         peptide_lines = []
-        peptides = [peptide for peptide in peptides if peptide in peptide_to_specid]
+        peptides = [str(peptide) for peptide in peptides if peptide in peptide_to_specid]
         psm_ids = [psm_id for peptide in peptides for psm_id in peptide_to_specid[peptide]]
         sqt_psm_df = sqt_df.loc[psm_ids]
         for locus in [protein]:
-            protein_sequence = fasta_dict[locus]['sequence']
+            protein_sequence = str(fasta_dict[locus]['sequence'])
             description_name = fasta_dict[locus]['description']
             sequence_count = len({(sequence, charge) for sequence, charge in sqt_psm_df[['sequence', 'charge']].values})
             spectrum_count = len(psm_ids)
