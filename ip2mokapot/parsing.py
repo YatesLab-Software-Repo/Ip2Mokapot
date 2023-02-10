@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import shlex
 from io import StringIO, TextIOWrapper
@@ -10,6 +11,7 @@ from serenipy import sqt, dtaselectfilter
 import pandas as pd
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
 from sklearn.preprocessing import MinMaxScaler
+from typing.io import IO
 
 from .util import calculate_protein_coverage, get_unmodified_peptide, map_protein_to_peptides, map_peptide_to_specid
 
@@ -117,6 +119,7 @@ def align_mass(df, mass_alignment_dim, mass_alignment_percentile):
     align_rts = rts[align_index]
     align_mass_ppm_diff = (1_000_000 * (df['experimental_mass'] - df['calculated_mass']) / df['calculated_mass'])[
         align_index]
+
     alignment_func = np.poly1d(np.polyfit(align_rts, align_mass_ppm_diff, mass_alignment_dim))
     shifts = alignment_func(rts) * df['experimental_mass'] / 1_000_000
     fig = plot_alignment(rts[align_index], df['experimental_mass'][align_index], shifts[align_index], df['calculated_mass'][align_index])

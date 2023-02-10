@@ -1,11 +1,6 @@
 import re
-from collections import defaultdict
 from xml.etree import ElementTree
-
 import numpy as np
-from mokapot.parsers.fasta import _group_proteins, _cleave
-from mokapot.proteins import Proteins, LOGGER
-
 
 def get_unmodified_peptide(peptide_sequence: str) -> str:
     """
@@ -121,3 +116,4 @@ def strip_modifications(peptide_sequence: str) -> str:
         The peptide sequence with all non-amino-acid characters removed.
     """
     return ''.join([c for c in peptide_sequence if c in 'ACDEFGHIKLMNPQRSTVWY'])
+

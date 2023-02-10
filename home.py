@@ -16,13 +16,12 @@ search_xml = st.file_uploader(label='search_xml', type='.xml', help=SEARCH_XML_D
 c1, c2 = st.columns(2)
 dta_params_input_type = c1.radio(
     "dta_params_input",
-    ('text','file'))
+    ('text', 'file'))
 dta_params, dta_params_txt = None, None
 if dta_params_input_type == 'file':
     dta_params = c2.file_uploader(label='dta_params', type='.params', help=DTASELECT_PARAMS_DESCRIPTION)
 else:
     dta_params_txt = c2.text_input(label='dta_params', value='', help=DTASELECT_PARAMS_DESCRIPTION)
-
 
 with st.expander('Advanced'):
     protein_fdr, peptide_fdr, psm_fdr, min_peptides = 0.01, 0.01, 0.01, 1
@@ -51,7 +50,8 @@ with st.expander('Advanced'):
     timscore = st.checkbox(label='timscore', value=False, help=TIMSCORE_DESCRIPTION)
     mass_alignment = st.checkbox(label='mass_alignment', value=True, help=MASS_ALIGNMENT_DESCRIPTION)
     mass_alignment_dim = st.number_input(label='mass_alignment_dim', value=1, help=MASS_ALIGNMENT_DIM_DESCRIPTION)
-    mass_alignment_percentile = st.number_input(label='mass_alignment_percentile', value=95, help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
+    mass_alignment_percentile = st.number_input(label='mass_alignment_percentile', value=95,
+                                                help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
 
     max_mline = st.number_input(label='max_mline', value=5, help=MAX_MLINE_DESCRIPTION)
     xcorr_filter = st.number_input(label='xcorr_filter', value=0.0, help=XCORR_FILTER_DESCRIPTION)
@@ -63,6 +63,7 @@ with st.expander('Advanced'):
         random_seed = st.number_input(label='random_seed', value=42)
 
     filter_level = st.number_input(label='filter_level', value=0, help=FILTER_LEVEL_DESCRIPTION)
+
 if st.button('Run'):
 
     if not sqts or not fastas:
@@ -85,18 +86,22 @@ if st.button('Run'):
     elif dta_params_txt:
         dta_params_io = StringIO(dta_params_txt)
 
-    alignment_figs, pin_df, dta_filter_content = mokafilter((sqt_ios, sqt_stems), (fasta_ios, fasta_stems), protein_fdr, peptide_fdr, psm_fdr, min_peptides,
-                                    search_xml_io, enzyme_regex, enzyme_term, missed_cleavage, min_length, max_length,
-                                    semi,
-                                    decoy_prefix, xgboost, test_fdr, folds, workers, max_itr, timscore,
-                                    mass_alignment,
-                                    max_mline, random_seed, dta_params_io, xcorr_filter, mass_alignment_dim,
-                                    mass_alignment_percentile, filter_level)
-
+    alignment_figs, pin_df, dta_filter_content = mokafilter((sqt_ios, sqt_stems), (fasta_ios, fasta_stems), protein_fdr,
+                                                            peptide_fdr, psm_fdr, min_peptides,
+                                                            search_xml_io, enzyme_regex, enzyme_term, missed_cleavage,
+                                                            min_length, max_length,
+                                                            semi,
+                                                            decoy_prefix, xgboost, test_fdr, folds, workers, max_itr,
+                                                            timscore,
+                                                            mass_alignment,
+                                                            max_mline, random_seed, dta_params_io, xcorr_filter,
+                                                            mass_alignment_dim,
+                                                            mass_alignment_percentile, filter_level)
 
     if alignment_figs:
         for fig, stem in zip(alignment_figs, sqt_stems):
             st.caption(stem)
             st.pyplot(fig)
 
-    st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content.read(), file_name='DTASelect-filter.txt')
+    st.download_button(label='Download DTASelect-filter.txt', data=dta_filter_content.read(),
+                       file_name='DTASelect-filter.txt')

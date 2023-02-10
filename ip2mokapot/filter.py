@@ -8,13 +8,13 @@ from typing import List, Union, Tuple, Iterator
 import matplotlib
 import numpy as np
 import pandas as pd
-import mokapot
-from mokapot.parsers.fasta import _parse_protein, _parse_fasta_files, read_fasta
 from tabulate import tabulate
 from serenipy import dtaselectfilter
 from typing.io import IO
 from xgboost import XGBClassifier
 
+from . import mokapot
+from .mokapot.parsers.fasta import _parse_protein, _parse_fasta_files, read_fasta
 from .parsing import convert_to_csv, convert_to_moka, get_filter_results_moka, align_mass, parse_dta_args
 from .util import xml_to_dict
 from .config import *
@@ -57,13 +57,13 @@ def parse_args() -> argparse.Namespace:
     _parser.add_argument('--max_iter', required=False, default=10, type=int, help=MAX_ITER_DESCRIPTION)
 
     _parser.add_argument('--timscore', default=False, action=argparse.BooleanOptionalAction, help=TIMSCORE_DESCRIPTION)
-    _parser.add_argument('--mass_alignment', default=True, action=argparse.BooleanOptionalAction, help=MASS_ALIGNMENT_DESCRIPTION)
+    _parser.add_argument('--mass_alignment', default=False, action=argparse.BooleanOptionalAction, help=MASS_ALIGNMENT_DESCRIPTION)
     _parser.add_argument('--mass_alignment_dim', required=False, default=1, type=int, help=MASS_ALIGNMENT_DIM_DESCRIPTION)
     _parser.add_argument('--mass_alignment_percentile', required=False, default=95, type=int,help=MASS_ALIGNMENT_PERCENTILE_DESCRIPTION)
     _parser.add_argument('--max_mline', required=False, default=None, type=int, help=MAX_MLINE_DESCRIPTION)
     _parser.add_argument('--seed', required=False, default=None, type=int, help=MAX_SEED_DESCRIPTION)
     _parser.add_argument('--xcorr_filter', required=False, default=None, type=float, help=XCORR_FILTER_DESCRIPTION)
-    _parser.add_argument('--verbosity', required=False, default=1, type=int, choices=[0,1,2,3], help=VERBOSITY_DESCRIPTION)
+    _parser.add_argument('--verbosity', required=False, default=2, type=int, choices=[0,1,2,3], help=VERBOSITY_DESCRIPTION)
     _parser.add_argument('--filter_level', required=False, default=0, type=int, choices=[0,1,2], help=FILTER_LEVEL_DESCRIPTION)
 
     return _parser.parse_args()
@@ -131,7 +131,7 @@ def run():
     if args.dta_params:
         dta_params = Path(args.dta_params).open()
 
-    print(args)
+    logging.info(args)
     alignment_figs, pin_df, dta_filter_content = mokafilter((sqt_ios, sqt_stems), (fasta_ios, fasta_stems),
                                                             args.protein_fdr, args.peptide_fdr, args.psm_fdr,
                                                             args.min_peptides,
@@ -156,7 +156,7 @@ def run():
             if fig is None:
                 continue
             png_name = f'{stem}_mass_alignment.png'
-            print(f'Saving alignment plot to {png_name}')
+            logging.info(f'Saving alignment plot to {png_name}')
             fig.savefig(png_name)
 
     if dta_params:
@@ -200,7 +200,7 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
     :return: str - the string contents of the output DTASelect-filter.txt file
     """
 
-    if dta_params:
+    if dta_params: # parse DTASelect.params files
         dta_args = parse_dta_args(dta_params.read().rstrip())
         fp_fdr = float(dta_args.get('--fp', 1.0))
         pfp_fdr = float(dta_args.get('--pfp', 1.0))
@@ -211,7 +211,7 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
         timscore = dta_args.get('--timscore', timscore)
         filter_level = int(dta_args.get('-t', filter_level))
 
-    if search_xml:
+    if search_xml: # search.xml file
         xml_dict = xml_to_dict(search_xml)
         missed_cleavage = int(xml_dict['enzyme_info']['max_num_internal_mis_cleavage'])
         if missed_cleavage == -1:
@@ -257,34 +257,31 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
         ['filter_level', filter_level]
     ], headers=['Argument', 'Value'], missingval='None')
 
-    print(tabulated_args)
+    logging.info(tabulated_args)
 
     # Set the random seed:
     if seed:
-        print(f'Setting random seed: {seed}')
+        logging.info(f'Setting random seed: {seed}')
         np.random.seed(seed)
 
     sqt_dfs = [convert_to_csv(sqt_io, sqt_stem, xcorr_filter, max_mline) for sqt_io, sqt_stem in zip(sqts[0], sqts[1])]
-    alignment_figs = None
+
+    alignment_figs = []
     if mass_alignment is True:
-        print(f'Aligning masses...')
-        figs = [align_mass(sqt_df, mass_alignment_dim, mass_alignment_percentile) for sqt_df in sqt_dfs]
-        alignment_figs = figs
+        logging.info(f'Aligning masses...')
+        for i, sqt_df in enumerate(sqt_dfs):
+            fig = None
+            try:
+                fig = align_mass(sqt_df, mass_alignment_dim, mass_alignment_percentile)
+            except np.linalg.LinAlgError as err:
+                logging.error(f'Error aligning masses for sqt {i}: {err}')
+            alignment_figs.append(fig)
 
     sqt_df = pd.concat(sqt_dfs, ignore_index=True)
     pin_df = convert_to_moka(sqt_df)
 
     fasta_elems = [_parse_protein(entry) for entry in _parse_fasta_files(fastas[0])]
     fasta_dict = {e[0]: {'sequence': e[1], 'description': e[2]} for e in fasta_elems}
-
-    """if enzyme_term is True:
-        pin_df['tryp'] = [
-            int(peptide[0] in enzyme_regex[1:-1]) + int(strip_modifications(peptide[:-2])[-1] in enzyme_regex[1:-1]) for
-            peptide in
-            sqt_df['sequence']]
-    else:
-        pin_df['tryp'] = [int(peptide[2] in enzyme_regex[1:-1]) + int(peptide[-1] in enzyme_regex[1:-1]) for peptide in
-                          sqt_df['sequence']]"""
 
     if any(sqt_df['tims_score']) and timscore is True:
         pin_df['tims_score'] = sqt_df['tims_score']
@@ -304,19 +301,26 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
 
     psms.add_proteins(proteins)
 
+    # Select Model
     if xgboost:
         estimator = mokapot.Model(XGBClassifier(objective='binary:logistic', nthread=4, seed=42), max_iter=max_iter)
     else:
         estimator = mokapot.PercolatorModel(max_iter=max_iter)
 
-    results, models = mokapot.brew(psms=psms,
-                                   model=estimator,
-                                   test_fdr=test_fdr,
-                                   folds=folds,
-                                   max_workers=workers)
-
-    # results.to_txt(dest_dir=str(sqt_path.parent), file_root=str(sqt_path.stem))
-    print(models)
+    try:
+        results, models = mokapot.brew(psms=psms,
+                                       model=estimator,
+                                       test_fdr=test_fdr,
+                                       folds=folds,
+                                       max_workers=workers)
+    except RuntimeError as err:
+        logging.error(f'Runtime Error: {err} Likely too few PSMs...')
+        logging.info('Writing alignment figures, pin_df and empty DTASelect-filter.txt file.')
+        return alignment_figs, pin_df, StringIO('')
+    except ValueError as err:
+        logging.error(f'ValueError: {err} Likely too few PSMs...')
+        logging.info('Writing alignment figures, pin_df and empty DTASelect-filter.txt file.')
+        return alignment_figs, pin_df, StringIO('')
 
     # separate protein, peptide, and psm dataframes
     target_psm_results, target_peptide_results, target_protein_results = results.confidence_estimates['psms'], \
@@ -420,19 +424,17 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
     total_decoy_peptides = len(decoy_peptide_charge_pairs)
     decoy_spectra = sum([result.protein_lines[0].spectrum_count for result in decoy_results])
 
-    try:
+    protein_fdr = 'NA'
+    if (decoy_protein_groups + target_protein_groups) != 0:
         protein_fdr = round(decoy_protein_groups / (decoy_protein_groups + target_protein_groups) * 100, 4)
-    except ZeroDivisionError:
-        protein_fdr = 'NA'
 
-    try:
+    peptide_fdr = 'NA'
+    if (decoy_peptides + target_peptides) != 0:
         peptide_fdr = round(decoy_peptides / (decoy_peptides + target_peptides) * 100, 4)
-    except ZeroDivisionError:
-        peptide_fdr = 'NA'
-    try:
+
+    spectra_fdr = 'NA'
+    if (decoy_spectra + target_spectra) != 0:
         spectra_fdr = round(decoy_spectra / (decoy_spectra + target_spectra) * 100, 4)
-    except ZeroDivisionError:
-        spectra_fdr = 'NA'
 
     end_lines = [f'	Proteins	Peptide IDs	Spectra\n',
                  f'Unfiltered	{unfiltered_proteins}  {unfiltered_peptides}  {unfiltered_psms}\n',

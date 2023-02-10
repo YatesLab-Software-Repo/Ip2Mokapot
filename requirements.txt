@@ -1,9 +1,9 @@
 numpy==1.23.5
 pandas==1.5.2
 serenipy==0.2.5
-git+https://github.com/proteomicsyates/mokapot.git
 xgboost==1.7.3
 biopython==1.80
 streamlit==1.17.0
 setuptools==65.5.1
 tabulate==0.9.0
+peptacular==0.0.3
