@@ -12,7 +12,7 @@ setup(
     install_requires=[
                         'numpy==1.23.5',
                         'pandas==1.5.2',
-                        'serenipy==0.2.4',
+                        'serenipy==0.2.5',
                         'mokapot @ git+https://github.com/proteomicsyates/mokapot.git',
                         'xgboost==1.7.3',
                         'biopython==1.80',
