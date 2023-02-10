@@ -7,7 +7,6 @@ from collections import defaultdict
 import numpy as np
 from peptacular.peptide import get_non_enzymatic_sequences, get_semi_sequences
 
-from ..utils import tuplize
 from ..proteins import Proteins
 
 LOGGER = logging.getLogger(__name__)
@@ -442,7 +441,7 @@ def _cleavage_sites(sequence, enzyme_regex, enzyme_term):
     # Find the cleavage sites
     sites = (
             [0]
-            + [m.end() if enzyme_term else m.start() for m in enzyme_regex.finditer(sequence)]
+            + [m.end() if enzyme_term else m.start() for m in enzyme_regex.finditer(str(sequence))]
             + [len(sequence)]
     )
     return sites

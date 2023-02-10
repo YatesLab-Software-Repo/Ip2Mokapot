@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='ip2mokapot',
-    version='0.1.3',
+    version='0.1.5',
     packages=['ip2mokapot',
               'ip2mokapot.mokapot',
               'ip2mokapot.mokapot.parsers',

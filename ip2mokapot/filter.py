@@ -316,11 +316,11 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
     except RuntimeError as err:
         logging.error(f'Runtime Error: {err} Likely too few PSMs...')
         logging.info('Writing alignment figures, pin_df and empty DTASelect-filter.txt file.')
-        return alignment_figs, pin_df, StringIO('')
+        return alignment_figs, pin_df, StringIO(EMPTY_DTA_FILTER)
     except ValueError as err:
         logging.error(f'ValueError: {err} Likely too few PSMs...')
         logging.info('Writing alignment figures, pin_df and empty DTASelect-filter.txt file.')
-        return alignment_figs, pin_df, StringIO('')
+        return alignment_figs, pin_df, StringIO(EMPTY_DTA_FILTER)
 
     # separate protein, peptide, and psm dataframes
     target_psm_results, target_peptide_results, target_protein_results = results.confidence_estimates['psms'], \

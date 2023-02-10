@@ -1,6 +1,6 @@
 DTASelect v2.1.12
-/data/tyrande/sylvanas_ip2_data/pgarrett/hela_5min/20180924_50ngHeLa_1_0_25_1_Hystar5_0SR1_S2_A4_1_2045_2022_05_05_20_264075/search/projects2022_05_06_10_199523
-/data/2/rpark/ip2_data/pgarrett/database//UniProt_Human_01-01-2022.fasta
+/data/
+/data/
 ProLuCID 1.4 in SQT format.
  -p 1 -y 2 --trypstat --fp 0.01 --modstat --extra --pI --DB --dm -t 0 --brief --quiet 
 true	Use criteria

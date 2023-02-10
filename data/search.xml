@@ -2,7 +2,7 @@
 <!--Parameters for ProLuCID database search-->
 <parameters>
   <database>
-    <database_name>/opt/applications/yates/dbase/UniProt_Human_01-01-2022.fasta</database_name>
+    <database_name>UniProt_Human_01-01-2022.fasta</database_name>
     <is_indexed>false</is_indexed>
   </database>
   <search_mode>
