@@ -67,40 +67,40 @@ EMPTY_DTA_FILTER = """DTASelect v2.1.12
 /data/
 /data/
 ProLuCID 1.4 in SQT format.
- -p 1 -y 1 --trypstat --pfp 0.01 --modstat --extra --pI --DB --dm -t 1 --after HYMFWL --brief --quiet
-true    Use criteria
-0.0     Minimum peptide probability
-0.01    Peptide global false discovery rate
-0.0     Minimum protein probability
-1.0     Protein false discovery rate
-1       Minimum charge state
-50      Maximum charge state
--1.0    Minimum ion proportion
-10000   Maximum Sp rank
--1.0    Minimum Sp score
-true    Define delta mass with respect to nearest isotope
-Include Modified peptide inclusion
-Half    Tryptic status requirement
-false   Multiple, ambiguous IDs allowed
-Ignore  Peptide validation handling
-Salt step       Purge duplicate peptides by protein
-false   Include only loci with unique peptide
-true    Remove subset proteins
-Ignore  Locus validation handling
-0       Minimum modified peptides per locus
-1       Minimum peptides per locus
+ -p 1 -y 2 --trypstat --fp 0.01 --modstat --extra --pI --DB --dm -t 0 --brief --quiet 
+true	Use criteria
+0.0	Minimum peptide probability
+0.01	Peptide global false discovery rate
+0.0	Minimum protein probability
+1.0	Protein false discovery rate
+1	Minimum charge state
+50	Maximum charge state
+-1.0	Minimum ion proportion
+10000	Maximum Sp rank
+-1.0	Minimum Sp score
+true	Define delta mass with respect to nearest isotope
+Include	Modified peptide inclusion
+Full	Tryptic status requirement
+false	Multiple, ambiguous IDs allowed
+Ignore	Peptide validation handling
+false	Purge duplicate peptides by protein
+false	Include only loci with unique peptide
+true	Remove subset proteins
+Ignore	Locus validation handling
+0	Minimum modified peptides per locus
+1	Minimum peptides per locus
 
-Locus   Sequence Count  Spectrum Count  Sequence Coverage       Length  MolWt   pI      Validation Status       NSAF    EMPAI   Descriptive Name
-Unique  FileName        XCorr   DeltCN  Conf%   M+H+    CalcM+H+        PPM     TotalIntensity  SpR     Prob Score      pI      IonProportion   Redundancy      Sequence        PTMIndex        PTMIndex Protein List
-        Proteins        Peptide IDs     Spectra
-Unfiltered      0      0      0
-Filtered        0       0       0
-Forward matches 0       0       0
-Redundant Forward matches       0       0       0
-Decoy matches   0       0       0
-Redundant Decoy matches 0       0       0
-Forward FDR     0.0     0.0     0.0
+Locus	Sequence Count	Spectrum Count	Sequence Coverage	Length	MolWt	pI	Validation Status	NSAF	EMPAI	Descriptive Name	HRedundancy	LRedundancy	MRedundancy
+Unique	FileName	XCorr	DeltCN	Conf%	M+H+	CalcM+H+	PPM	TotalIntensity	SpR	Prob Score	pI	IonProportion	Redundancy	Sequence	RetTime	PTMIndex	PTMIndex Protein List
+	Proteins	Peptide IDs	Spectra
+Unfiltered	0	0	0
+Filtered	0	0	0
+Forward matches	0	0	0
+Redundant Forward matches	0	0	0
+Decoy matches	0	0	0
+Redundant Decoy matches	0	0	0
+Forward FDR	0	0	0
 
-Classification  Nonredundant Proteins   Redundant Proteins
-Unclassified    0       0  
+Classification	Nonredundant Proteins	Redundant Proteins
+Unclassified	0	0
 """
