@@ -436,14 +436,17 @@ def mokafilter(sqts: Tuple[Iterator[IO[str]], List[str]],
     if (decoy_spectra + target_spectra) != 0:
         spectra_fdr = round(decoy_spectra / (decoy_spectra + target_spectra) * 100, 4)
 
-    end_lines = [f'	Proteins	Peptide IDs	Spectra\n',
-                 f'Unfiltered	{unfiltered_proteins}  {unfiltered_peptides}  {unfiltered_psms}\n',
-                 f'Filtered	{decoy_protein_groups + target_protein_groups}  {target_peptides + decoy_peptides}  {target_spectra + decoy_spectra}\n',
-                 f'Forward	{target_protein_groups}  {target_peptides}  {target_spectra}\n',
-                 f'Redundant Forward matches	{target_proteins}  {total_target_peptides}  {target_spectra}\n',
-                 f'Decoy matches	{decoy_protein_groups}  {decoy_peptides}  {decoy_spectra}\n',
-                 f'Redundant Decoy matches	{decoy_proteins}  {total_decoy_peptides}  {decoy_spectra}\n',
-                 f'Forward FDR	{protein_fdr}	{peptide_fdr}	{spectra_fdr}\n']
+    end_lines = [f'\tProteins\tPeptide IDs\tSpectra\n',
+                 f'Unfiltered\t{unfiltered_proteins}\t{unfiltered_peptides}\t{unfiltered_psms}\n',
+                 f'Filtered\t{decoy_protein_groups + target_protein_groups}\t{target_peptides + decoy_peptides}\t{target_spectra + decoy_spectra}\n',
+                 f'Forward\t{target_protein_groups}\t{target_peptides}\t{target_spectra}\n',
+                 f'Redundant Forward matches\t{target_proteins}\t{total_target_peptides}\t{target_spectra}\n',
+                 f'Decoy matches\t{decoy_protein_groups}\t{decoy_peptides}\t{decoy_spectra}\n',
+                 f'Redundant Decoy matches\t{decoy_proteins}\t{total_decoy_peptides}\t{decoy_spectra}\n',
+                 f'Forward FDR\t{protein_fdr}\t{peptide_fdr}\t{spectra_fdr}\n',
+                 f'\n',
+                 f'Classification\tNonredundant Proteins\tRedundant Proteins\n',
+                 f'Unclassified\t{decoy_protein_groups + target_protein_groups}\t{(target_proteins + decoy_proteins) - (decoy_protein_groups + target_protein_groups)}']
 
     if timscore is True:
         h_lines = ['DTASelect v2.1.13\n',
